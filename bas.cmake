@@ -1,6 +1,9 @@
 # Copy and configure the following in your cmake script before adding the auto-a113 subdirectory.
 # Due to thinking about her I completely forgot what BAS stands for two minutes after making the file.
 
+# VVV COPY FROM HERE VVV
+
+# ===== auto-a113 BAS begin =====
 # Location of auto-a113.
 set( A113_ROOT_DIR "" )
 
@@ -14,4 +17,5 @@ set( A113_TARGET_PLATE "" )
 set( A113_TARGET_OS "" ) 
 
 # Add auto-a113.
-add_subdirectory( "${A113_ROOT_DIR}" "#{CMAKE_CURRENT_BINARY_DIR}/auto-a113" )
+add_subdirectory( "${A113_ROOT_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/auto-a113" )
+# ===== auto-a113 BAS end =====
