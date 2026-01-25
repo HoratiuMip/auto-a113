@@ -16,6 +16,12 @@ set( A113_TARGET_PLATE "" )
 # - "Windows"
 set( A113_TARGET_OS "" ) 
 
+# Clockworks to configure and build.
+#  - "immersive" - The Immersive framework, used for GUI and 3D rendering.
+set( A113_MAKE_CLOCKWORKS 
+    "" 
+)
+
 # Add auto-a113.
 add_subdirectory( "${A113_ROOT_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/auto-a113" )
 # ===== auto-a113 BAS end =====
