@@ -1,0 +1,1 @@
+Sa vina tupeu de poet si scriem si aici.
