@@ -34,14 +34,14 @@ public:
     using control_t   = _dispenser_acquire< _T_, true >;
 
 public:
-    Dispenser( const DispenserMode_ mode_, const dispenser_config_t& config_ = {} ) : _mode{ mode_ }, _config{ config_ } {
+    Dispenser( const DispenserMode_ mode_, const dispenser_config_t& config_ = {} ) : _mode{ mode_ }, _config{ config_ }, _M_{ mode_ } {
         switch( _mode ) {
             case DispenserMode_Lock: {
                 _M_.lock.block = HVec< _T_ >::make();
                 new ( &_M_.lock.mtx ) std::shared_mutex{};
             break; }
-            case DispenserMode_Drop: {
-                _M_.drop.block = HVec< _T_ >::make();
+            case DispenserMode_Drop: { 
+                new ( &_M_.drop.block ) HVec< _T_ >{ HVec< _T_ >::make() };
             break; }
             case DispenserMode_Swap: [[fallthrough]];
             case DispenserMode_ReverseSwap: {
@@ -73,7 +73,28 @@ _A113_PROTECTED:
     DispenserMode_       _mode;
     dispenser_config_t   _config;
 
-    union _M_t { _M_t( void ) {} ~_M_t( void ) {}
+    union _M_t { 
+        _M_t( const DispenserMode_ mode_ ) {
+            switch( mode_ ) {
+                case DispenserMode_Lock: 
+                    new ( &lock.block ) HVec< _T_ >      { HVec< _T_ >::make() };
+                    new ( &lock.block ) std::shared_mutex{};
+                    break;
+                case DispenserMode_Drop:
+                    new ( &drop.block ) HVec< _T_ >{ HVec< _T_ >::make() };
+                    break;
+                case DispenserMode_Swap: [[fallthrough]];
+                case DispenserMode_ReverseSwap:
+                    new ( &swap.blocks[ 0x0 ] ) HVec< _T_ >      { HVec< _T_ >::make() };
+                    new ( &swap.blocks[ 0x1 ] ) HVec< _T_ >      { HVec< _T_ >::make() };
+                    new ( &swap.mtxs[ 0x0 ] )   std::shared_mutex{};
+                    new ( &swap.mtxs[ 0x1 ] )   std::shared_mutex{};
+                    new ( &swap.ctl_idx )       uint8_t          { 0x0 };
+                    break;
+            }
+        } 
+        ~_M_t( void ) {}
+
         struct _lock_mode_t {
             HVec< _T_ >         block;
             std::shared_mutex   mtx;
@@ -119,7 +140,7 @@ public:
 
 template< typename _T_, bool _IS_CONTROL_ > struct _dispenser_acquire {
 public:
-    [[gnu::hot]] _dispenser_acquire( Dispenser< _T_ >& disp_ ) : _disp{ &disp_ } {
+    [[gnu::hot]] _dispenser_acquire( Dispenser< _T_ >& disp_ ) : _disp{ &disp_ }, _M_{ disp_._mode }  {
         switch( _disp->_mode ) {
             case DispenserMode_Lock: {
                 if constexpr( _IS_CONTROL_ ) {
@@ -129,7 +150,7 @@ public:
                 }
             break; }
             case DispenserMode_Drop: {
-                if constexpr( _IS_CONTROL_ ) {
+                if constexpr( _IS_CONTROL_ ) { 
                     _M_.drop.block = HVec< _T_ >::make();
                 } else {
                     _M_.drop.block = _disp->_M_.drop.block;
@@ -172,7 +193,7 @@ public:
     _dispenser_acquire( const _dispenser_acquire& ) = delete;
 
     _dispenser_acquire( _dispenser_acquire&& other_ )
-    : _disp{ std::exchange( other_._disp, nullptr ) }
+    : _disp{ std::exchange( other_._disp, nullptr ) }, _M_{ _disp->_mode }
     {
         switch( _disp->_mode ) {
             case DispenserMode_Lock: {
@@ -245,7 +266,22 @@ public:
 _A113_PROTECTED:
     Dispenser< _T_ >*   _disp;
     
-    union _M_t { _M_t( void ) {} ~_M_t( void ) {}
+    union _M_t { 
+        _M_t( const DispenserMode_ mode_ ) {
+            switch( mode_ ) {
+                case DispenserMode_Lock: break;
+                case DispenserMode_Drop:
+                    new ( &drop.block ) HVec< _T_ >{ HVec< _T_ >::make() };
+                    break;
+                case DispenserMode_Swap: [[fallthrough]];
+                case DispenserMode_ReverseSwap:
+                    new ( &swap.block )   _T_*   { nullptr };
+                    new ( &swap.ctl_idx ) uint8_t{ 0x0 };
+                    break;
+            }
+        } 
+        ~_M_t( void ) {}
+
         struct _lock_mode_t {
         } lock;
         struct _drop_mode_t {

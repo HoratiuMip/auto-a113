@@ -78,6 +78,7 @@ if( A113_Opt_TargetOS_Windows )
         PUBLIC "-lbthprops"
         PUBLIC "-lcrypt32"
         PUBLIC "-lcfgmgr32"
+        PUBLIC "-lsetupapi"
         PUBLIC "libcomctl32.a"
         PUBLIC "libcomdlg32.a"
     )

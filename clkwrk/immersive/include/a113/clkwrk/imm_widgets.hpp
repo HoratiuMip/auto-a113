@@ -7,6 +7,7 @@
  */
 
 #include <a113/clkwrk/immersive.hpp>
+#include <a113/osp/IO_utils.hpp>
 
 namespace a113::clkwrk::imm_widgets {
 
