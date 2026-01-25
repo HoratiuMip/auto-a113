@@ -18,7 +18,7 @@
 #include <tiny_obj_loader.h>
 
 
-namespace a113 { namespace imm {
+namespace a113::imm {
 
 enum ShaderPhase_ {
     ShaderPhase_None     = -0x1,
@@ -49,6 +49,12 @@ enum MeshFlag_ {
     MeshFlag_MakePipe = _BV( 0x0 )
 };
 
+struct tex_params_t {
+    GLuint   min_filter   = GL_LINEAR_MIPMAP_LINEAR;
+    GLuint   mag_filter   = GL_LINEAR;
+    GLuint   v_flip       = false;
+};
+
 class Cluster {
 public:
     /* MIP here after almost one year. Yeah.*/
@@ -56,8 +62,13 @@ public:
     //std::cout << "TY";
 
 public:
-    Cluster( GLFWwindow* glfwnd )
-    :  _glfwnd{ glfwnd } 
+    struct init_args_t {
+        GLFWwindow*   glfwnd;
+    };
+
+public:
+    Cluster( const init_args_t& args_ )
+    :  _glfwnd{ args_.glfwnd } 
     {
         glfwMakeContextCurrent( _glfwnd );
 
@@ -82,9 +93,7 @@ public:
         glfwGetFramebufferSize( _glfwnd, &wnd_w, &wnd_h );
         glViewport( 0, 0, wnd_w, wnd_h );
 
-        stbi_set_flip_vertically_on_load( true );
-
-        A113_LOGI_IMM( "Docked on {}, using {}.", _rend_str ? _rend_str : "NULL", _gl_str ? _gl_str : "NULL" );
+        A113_LOGI_IMM( "Rendering cluster docked on {}, using {}.", _rend_str ? _rend_str : "NULL", _gl_str ? _gl_str : "NULL" );
     }
 
     Cluster( const Cluster& ) = delete;
@@ -116,12 +125,13 @@ _A113_PROTECTED:
         GLuint        glidx   = GL_NONE;
     };
     struct _shader_cache_t : public _internal_struct_t {
-        cache::Bucket< std::string_view, shader_t >   _buckets[ ShaderPhase_COUNT ]   = {};
+        cache::Bucket< std::string, shader_t >   _buckets[ ShaderPhase_COUNT ]   = {};
 
         HVec< shader_t > make_shader( std::string source_, std::string strid_, ShaderPhase_ phase_, const char* from_ ) {
             if( strid_.empty() ) strid_ = std::to_string( std::hash< std::string >{}( source_ ) );
 
-            auto shader = _buckets[ phase_ ].query( strid_ );
+            auto bkt_hdl_ = cache::BucketHandle_None;
+            auto shader = _buckets[ phase_ ].query( strid_, bkt_hdl_ );
 
             if( not shader ) {
                 shader = HVec< shader_t >::make( std::move( strid_ ), glCreateShader( ShaderPhase_MAP[ phase_ ] ) );
@@ -143,6 +153,7 @@ _A113_PROTECTED:
                     return nullptr;
                 }
 
+                _buckets[ phase_ ].commit( shader->strid, shader );
                 A113_LOGI_IMM( "Created SHADER[{}] from {}.", shader->strid, from_ );
             } else {
                 A113_LOGI_IMM( "Pulled SHADER[{}] from cache, requested from {}.", shader->strid, from_ );
@@ -246,7 +257,7 @@ _A113_PROTECTED:
         GLuint        glidx   = GL_NONE;
     };
     struct _pipe_cache_t : public _internal_struct_t { 
-        cache::Bucket< std::string_view, pipe_t >   _bucket   = {};
+        cache::Bucket< std::string, pipe_t >   _bucket   = {};
 
         HVec< pipe_t > make_pipe( shader_t* arr_[ ShaderPhase_COUNT ], const char* from_ ) {
             static const char* const stage_pretties[ ShaderPhase_COUNT ] = {
@@ -262,7 +273,8 @@ _A113_PROTECTED:
                 strid += shader->strid + '>';
             }
 
-            auto pipe = _bucket.query( strid );
+            auto bkt_hdl_ = cache::BucketHandle_None;
+            auto pipe = _bucket.query( strid, bkt_hdl_ );
 
             if( not pipe ) {
                 pipe = HVec< pipe_t >::make( std::move( strid ), glCreateProgram() );
@@ -288,6 +300,7 @@ _A113_PROTECTED:
                     return nullptr;
                 }
 
+                _bucket.commit( pipe->strid, pipe );
                 A113_LOGI_IMM( "Created PIPE[{}] from {}.", pipe->strid, from_ );
             } else {
                 A113_LOGI_IMM( "Pulled PIPE[{}] from cache, requested from {}.", pipe->strid, from_ );
@@ -314,7 +327,73 @@ _A113_PROTECTED:
     } _pipe_cache{ this };
 
 _A113_PROTECTED:
+    struct tex_t {
+        tex_t( void ) = default;
+        tex_t( const std::string& strid_, GLuint glidx_ ) : strid{ strid_ }, glidx{ glidx_ } {}
 
+        tex_t( const tex_t& ) = delete;
+        tex_t( tex_t&& other_ ) : strid{ std::move( other_.strid ) }, glidx{ std::exchange( other_.glidx, GL_NONE ) } {}
+
+        ~tex_t( void ) { 
+            A113_ASSERT_OR( GL_NONE != glidx ) return;
+            glDeleteTextures( 1, &glidx );
+            glidx = GL_NONE; 
+        }
+
+        std::string   strid   = {};
+        GLuint        glidx   = GL_NONE;
+    };
+    struct _tex_cache_t : public _internal_struct_t {
+        cache::Bucket< std::string, tex_t >   _bucket   = {};
+
+        HVec< tex_t > make_tex( std::string strid_, cache::BucketHandle_ bkt_hdl_, const tex_params_t& params_, const void* pixels_, int x_, int y_, const char* from_ ) {
+            HVec< tex_t > tex = _bucket.query( strid_, bkt_hdl_ );
+
+            if( not tex ) {
+                GLuint tex_glidx;
+
+                glGenTextures( 1, &tex_glidx );
+                glBindTexture( GL_TEXTURE_2D, tex_glidx );
+                glTexImage2D( GL_TEXTURE_2D, 0, GL_SRGB, x_, y_, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels_ );
+                glGenerateMipmap( GL_TEXTURE_2D );
+
+                glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
+                glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+                glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, params_.min_filter );
+                glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, params_.mag_filter );
+
+                glBindTexture( GL_TEXTURE_2D, GL_NONE );
+
+                tex = _bucket.commit( strid_, tex_t{ strid_, tex_glidx }, bkt_hdl_ );
+                A113_LOGI_IMM( "Created TEX[{}] from {}.", tex->strid, from_ );
+            } else {
+                A113_LOGI_IMM( "Pulled TEX[{}] from cache, requested from {}.", tex->strid, from_ );
+            }
+
+            return tex;
+        }
+
+        HVec< tex_t > make_tex_from_file( std::string strid_, cache::BucketHandle_ bkt_hdl_, const tex_params_t& params_, const std::filesystem::path& path_ ) {
+            if( strid_.empty() ) strid_ = path_.string();
+
+            auto tex = _bucket.query( strid_, bkt_hdl_ );
+
+            if( not tex ) {
+                int x, y, n;
+                stbi_set_flip_vertically_on_load( params_.v_flip );
+                unsigned char* img_buf = stbi_load( path_.string().c_str(), &x, &y, &n, 4 );
+
+                A113_ASSERT_OR( img_buf ) {
+                    A113_LOGE_IMM_INT( A113_ERR_OPEN, "Could NOT load texture from {}.", path_.string() );
+                    return nullptr;
+                }
+
+                tex = this->make_tex( strid_, bkt_hdl_, params_, img_buf, x, y, path_.string().c_str() );
+                stbi_image_free( img_buf );
+            } 
+            return tex;
+        }
+    } _tex_cache{ this };
 
 _A113_PROTECTED:
     class mesh_t : public _internal_struct_t {
@@ -588,8 +667,9 @@ _A113_PROTECTED:
     };
 
 public:
-    auto& shader_cache( void ) { return _shader_cache; }
-    auto& pipe_cache( void ) { return _pipe_cache; }
+    auto& shader_handler( void ) { return _shader_cache; }
+    auto& pipe_handler( void ) { return _pipe_cache; }
+    auto& tex_handler( void ) { return _tex_cache; }
 
 public:
     void clear( glm::vec4 c = { .0, .0, .0, 1.0 } ) {
@@ -632,4 +712,4 @@ public:
 };
 
 
-} };
+};

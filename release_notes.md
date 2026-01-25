@@ -1,5 +1,9 @@
 # `AUTO-A113` Engine Release Notes
 
+## 25 Jan 2025 - `v1.0.2`
+> - Modified the `cache::Bucket` structure and some logic behind it, including the `BucketHandle_` control flow.
+> - Completed the texture cache for the immersive render cluster.
+
 ## 16 Jan 2026 - `v1.0.1`
 > - Added a `drop` method to the `Dispenser` which is supposed to cancel the changes made under a control acquire. This method currently supports only `DispenserMode_Drop`. No, the method name has nothing to do with the mode name, it is just a coincidence :).
 

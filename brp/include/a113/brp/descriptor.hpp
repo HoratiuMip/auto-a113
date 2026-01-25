@@ -59,6 +59,7 @@ typedef   int   status_t;
 #define A113_ERR_OPEN        -0x4
 #define A113_ERR_EXCOMCALL   -0x5
 #define A113_ERR_LOGIC       -0x6
+#define A113_ERR_USERCALL    -0x7
 
 inline static const char* const A113_status_msgs[] = {
     "OK",
@@ -67,7 +68,8 @@ inline static const char* const A113_status_msgs[] = {
     "WOULD_OVRWR",
     "OPEN",
     "EXCOMCALL",
-    "LOGIC"
+    "LOGIC",
+    "USERCALL"
 };
 #define A113_STATUS_MSG( s ) (A113_status_msgs[-(s)])
 

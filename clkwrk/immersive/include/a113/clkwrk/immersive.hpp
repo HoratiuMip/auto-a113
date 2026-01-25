@@ -12,46 +12,43 @@
 
 namespace a113::clkwrk {
 
-
-class Imm_Frame {
-public:
-    virtual status_t imm_frame( double dt_, void* arg_ ) = 0;
-
-};
-
 class Immersive  {
 public:
-    typedef   std::function< status_t( double, void* ) >   frame_callback_t;
+    struct frame_cb_args_t {
+        void*    ctx;
+        double   dt;
+    };
+
+    struct init_cb_args_t {
+        void*   ctx;
+    };
+
+public:
+    typedef   std::function< status_t( const frame_cb_args_t& ) >   frame_callback_t;
+    typedef   std::function< status_t( const init_cb_args_t&  ) >   init_callback_t;          
 
 public:
     enum SrfBeginAs_ {
-        SrfBeginAs_Default, SrfBeginAs_Iconify, SrfBeginAs_Maximize
+        SrfBeginAs_Default, SrfBeginAs_Iconify, SrfBeginAs_Maximize, SrfBeginAs_Hide
     };
 
 public:
     struct config_t {
-        void*              arg                   = nullptr;
+        void*              ctx           = nullptr;
 
-        const char*        title                 = A113_VERSION_STRING"::clkwrk::immersive";
-        int                width                 = 64;
-        int                height                = 64;
-       // glm::vec4          clear_color           = { 0.05, 0.05, 0.1, 1.0 };
-        SrfBeginAs_        srf_bgn_as            = SrfBeginAs_Default;
+        const char*        title         = A113_VERSION_STRING"::clkwrk::immersive";
+        int                width         = 64;
+        int                height        = 64;
+        SrfBeginAs_        srf_bgn_as    = SrfBeginAs_Default;
+        glm::vec4          clear_color   = { 0.05, 0.05, 0.1, 1.0 };
 
-        frame_callback_t   loop                  = nullptr;
+        init_callback_t    init_cb       = nullptr;
+        frame_callback_t   loop_cb       = nullptr;
 
     } config;
 
 public:
-    typedef   std::function< status_t( void* ) >           init_callback_t;
-
-public:
-    init_callback_t    init            = nullptr;
-
-    std::atomic_bool   init_complete   = false;
-    std::atomic_bool   init_hold       = true;
-
-    // Render3            render          = {};
+    HVec< imm::Cluster >   cluster   = nullptr;
     // Lens3              lens            = { glm::vec3( 0.0, 0.0, 3.0 ), glm::vec3( 0.0, 0.0, 0.0 ), glm::vec3( 0.0, 1.0, 0.0 ) };
 
 _A113_PROTECTED:
@@ -70,16 +67,15 @@ public:
     // }
 
 public:
-    int main( int argc_, char* argv_[], const config_t& config_ ) {
+    status_t main( int argc_, char* argv_[], const config_t& config_ ) {
         config = config_;
 
-    
-        A113_LOGI_IMM( "Beginning clockwork initialization..." );
+        A113_LOGI_IMM( "Immersive clockwork launched. Initializing the graphics library..." );
 
         glfwInit();
         glewInit();
 
-        glfwSetErrorCallback( [] ( int err_, const char* desc_ ) -> void {
+        glfwSetErrorCallback( [] ( int err_, const char* desc_ ) static -> void {
             A113_LOGE_IMM( "GLFW error [{}] occured: \"{}\".", err_, desc_ );
         } );
     
@@ -93,12 +89,14 @@ public:
         
         GLFWwindow* window = glfwCreateWindow( config.width, config.height, config.title, nullptr, nullptr );
 
-        A113_ASSERT_OR( window ) { A113_LOGE_IMM( "Bad window handle." ); return -0x1; }
-        A113_LOGI_IMM( "Graphics Library Window handle ok..." );
+        A113_ASSERT_OR( window ) { A113_LOGE_IMM_INT( A113_ERR_EXCOMCALL, "Bad window handle." ); return A113_ERR_EXCOMCALL; }
+        A113_LOGI_IMM( "Window handle ok." );
 
         glfwMakeContextCurrent( window );
-
-        // new ( &render ) Render3{ window };
+        
+        if( not cluster ) cluster = HVec< imm::Cluster >::make( imm::Cluster::init_args_t{
+            .glfwnd = window
+        } );
 
         // glfwSetWindowUserPointer( render.handle(), params.arg );
 
@@ -119,10 +117,22 @@ public:
         ImGui_ImplGlfw_InitForOpenGL( window, true );
         ImGui_ImplOpenGL3_Init();
 
-        A113_LOGI_IMM( "Immediate Mode Graphical User Interface ( ImGui ) ok..." );
+        A113_LOGI_IMM( "Immediate mode Graphical User Interface ( ImGui ) initialization complete." );
         
-        if( SrfBeginAs_Iconify == config.srf_bgn_as ) glfwIconifyWindow( window );
+        if     ( SrfBeginAs_Iconify == config.srf_bgn_as ) glfwIconifyWindow( window );
+        else if( SrfBeginAs_Hide    == config.srf_bgn_as ) glfwHideWindow( window );
 
+        if( config.init_cb ) {
+            A113_LOGI_IMM( "Invoking the initialization complete callback..." );
+            A113_ASSERT_OR( A113_OK == this->config.init_cb( init_cb_args_t{
+                .ctx = config.ctx
+            } ) ) {
+                A113_LOGE_IMM_INT( A113_ERR_USERCALL, "The immersive clockwork has been aborted by the user from the initialization callback." );
+                return A113_ERR_USERCALL;
+            }
+        } else {
+            A113_LOGI_IMM( "No initialization complete callback found." );
+        }
         //if( init ) if( init( params.arg ) != 0 ) goto l_end;
 
         // glfwMakeContextCurrent( nullptr );
@@ -132,7 +142,7 @@ public:
         // init_hold.wait( true, std::memory_order_acquire );
         // glfwMakeContextCurrent( render.handle() );
         
-        A113_LOGI_IMM( "Clockwork initialization complete." );
+        A113_LOGI_IMM( "Immersive clockwork initialization complete. Launching the loop." );
 
         _is_running.store( true, std::memory_order_release );
         while( _is_running.load( std::memory_order_relaxed ) && !glfwWindowShouldClose( window ) ) {
@@ -149,7 +159,10 @@ public:
 
             //render.clear( params.clear_color );
 
-            A113_ASSERT_OR( this->config.loop( imgui.io.DeltaTime, config.arg ) == 0x0 ) _is_running.store( false, std::memory_order_seq_cst );
+            A113_ASSERT_OR( A113_OK == this->config.loop_cb( frame_cb_args_t{
+                .ctx = config.ctx,
+                .dt  = imgui.io.DeltaTime
+            } ) ) _is_running.store( false, std::memory_order_seq_cst );
 
             ImGui::Render();
 
@@ -158,14 +171,13 @@ public:
             ImGui::UpdatePlatformWindows();
             ImGui::RenderPlatformWindowsDefault();
             glfwMakeContextCurrent( window );
-                glfwSwapBuffers( window );
-            //render.swap();
+            cluster->swap();
         }
 
     l_end:
         _is_running.store( false, std::memory_order_seq_cst );
 
-        A113_LOGI_IMM( "Shutting down framework..." );
+        A113_LOGI_IMM( "Shutting down the immersive clockwork..." );
 
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
@@ -174,11 +186,10 @@ public:
 
         glfwDestroyWindow( window );
 
-        A113_LOGI_IMM( "Shutdown ok." );
-        return 0x0;
+        A113_LOGI_IMM( "The immersive clockwork has been shut down completely." );
+        return A113_OK;
     }
 
 };
-
 
 }
