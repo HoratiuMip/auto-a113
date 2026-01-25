@@ -20,9 +20,6 @@ option( A113_Opt_TargetOS_Windows OFF )
 
 option( A113_Opt_TargetPlate_uC OFF )
 
-if( DEFINED A113_USE_BAS )
-    include( "${CMAKE_CURRENT_LIST_DIR}/bas.cmake" NO_POLICY_SCOPE )
-endif()
 
 if( NOT DEFINED A113_TARGET_PLATE )
     message( ERROR "[A113] Target plate not specified. Aborted." )
