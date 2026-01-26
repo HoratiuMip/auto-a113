@@ -50,9 +50,29 @@ enum MeshFlag_ {
 };
 
 struct tex_params_t {
-    GLuint   min_filter   = GL_LINEAR_MIPMAP_LINEAR;
-    GLuint   mag_filter   = GL_LINEAR;
-    GLuint   v_flip       = false;
+    GLuint   min_filter    = GL_LINEAR_MIPMAP_LINEAR;
+    GLuint   mag_filter    = GL_LINEAR;
+    GLuint   v_flip        = false;
+    bool     keep_in_RAM   = false;
+};
+struct tex_t {
+    tex_t( void ) = default;
+    tex_t( const std::string& strid_, GLuint glidx_ ) : strid{ strid_ }, glidx{ glidx_ } {}
+
+    tex_t( const tex_t& ) = delete;
+    tex_t( tex_t&& other_ ) : strid{ std::move( other_.strid ) }, glidx{ std::exchange( other_.glidx, GL_NONE ) } {}
+
+    ~tex_t( void ) { 
+        A113_ASSERT_OR( GL_NONE != glidx ) return;
+        glDeleteTextures( 1, &glidx );
+        glidx = GL_NONE; 
+
+        if( RAM_img.pixels ) free( RAM_img.pixels );
+    }
+
+    std::string   strid     = {};
+    GLuint        glidx     = GL_NONE;
+    GLFWimage     RAM_img   = {};
 };
 
 class Cluster {
@@ -327,22 +347,6 @@ _A113_PROTECTED:
     } _pipe_cache{ this };
 
 _A113_PROTECTED:
-    struct tex_t {
-        tex_t( void ) = default;
-        tex_t( const std::string& strid_, GLuint glidx_ ) : strid{ strid_ }, glidx{ glidx_ } {}
-
-        tex_t( const tex_t& ) = delete;
-        tex_t( tex_t&& other_ ) : strid{ std::move( other_.strid ) }, glidx{ std::exchange( other_.glidx, GL_NONE ) } {}
-
-        ~tex_t( void ) { 
-            A113_ASSERT_OR( GL_NONE != glidx ) return;
-            glDeleteTextures( 1, &glidx );
-            glidx = GL_NONE; 
-        }
-
-        std::string   strid   = {};
-        GLuint        glidx   = GL_NONE;
-    };
     struct _tex_cache_t : public _internal_struct_t {
         cache::Bucket< std::string, tex_t >   _bucket   = {};
 
@@ -369,7 +373,7 @@ _A113_PROTECTED:
             } else {
                 A113_LOGI_IMM( "Pulled TEX[{}] from cache, requested from {}.", tex->strid, from_ );
             }
-
+            
             return tex;
         }
 
@@ -389,7 +393,13 @@ _A113_PROTECTED:
                 }
 
                 tex = this->make_tex( strid_, bkt_hdl_, params_, img_buf, x, y, path_.string().c_str() );
-                stbi_image_free( img_buf );
+                if( params_.keep_in_RAM ) {
+                    tex->RAM_img.width  = x;
+                    tex->RAM_img.height = y;
+                    tex->RAM_img.pixels = img_buf;
+                } else {
+                    stbi_image_free( img_buf );
+                }
             } 
             return tex;
         }
@@ -708,6 +718,9 @@ public:
         glfwGetFramebufferSize( _glfwnd, &wnd_w, &wnd_h );
         return ( float )wnd_w / ( float )wnd_h;
     }
+
+public:
+    GLFWwindow* handle( void ) { return _glfwnd; }
 
 };
 

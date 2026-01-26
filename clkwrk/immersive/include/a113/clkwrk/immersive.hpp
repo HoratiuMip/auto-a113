@@ -34,25 +34,26 @@ public:
 
 public:
     struct config_t {
-        void*              ctx           = nullptr;
+        void*                   ctx           = nullptr;
 
-        const char*        title         = A113_VERSION_STRING"::clkwrk::immersive";
-        int                width         = 64;
-        int                height        = 64;
-        SrfBeginAs_        srf_bgn_as    = SrfBeginAs_Default;
-        glm::vec4          clear_color   = { 0.05, 0.05, 0.1, 1.0 };
+        const char*             title         = A113_VERSION_STRING"::clkwrk::immersive";
+        int                     width         = 64;
+        int                     height        = 64;
+        SrfBeginAs_             srf_bgn_as    = SrfBeginAs_Default;
+        glm::vec4               clear_color   = { 0.05, 0.05, 0.1, 1.0 };
+        std::filesystem::path   icon_path     = {};
 
-        init_callback_t    init_cb       = nullptr;
-        frame_callback_t   loop_cb       = nullptr;
+        init_callback_t         init_cb       = nullptr;
+        frame_callback_t        loop_cb       = nullptr;
 
     } config;
 
 public:
-    HVec< imm::Cluster >   cluster   = nullptr;
+    HVec< imm::Cluster >   cluster       = nullptr;
     // Lens3              lens            = { glm::vec3( 0.0, 0.0, 3.0 ), glm::vec3( 0.0, 0.0, 0.0 ), glm::vec3( 0.0, 1.0, 0.0 ) };
 
 _A113_PROTECTED:
-    std::atomic_bool   _is_running   = false;
+    std::atomic_bool       _is_running   = false;
 
 public:
     // void Wait_init_complete( void ) {
@@ -65,6 +66,12 @@ public:
     //     init_hold.store( false, std::memory_order_release );
     //     init_hold.notify_one();
     // }
+
+public:
+    status_t set_icon( GLFWimage& img_ ) {
+        glfwSetWindowIcon( cluster->handle(), 1, &img_ );
+        return A113_OK;
+    }
 
 public:
     status_t main( int argc_, char* argv_[], const config_t& config_ ) {
