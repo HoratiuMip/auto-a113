@@ -1,6 +1,10 @@
 # `AUTO-A113` Engine Release Notes
 
-## 25 Jan 2025 - `v1.0.2`
+## 4 Feb 2026 - `v1.0.3`
+> - Added support for bluetooth adresses in IO utils.
+> - Deprecated IO utils address string types' get(), use str() instead. ( avoid confusion in inheritance cases ).
+
+## 25 Jan 2026 - `v1.0.2`
 > - Modified the `cache::Bucket` structure and some logic behind it, including the `BucketHandle_` control flow.
 > - Completed the texture cache for the immersive render cluster.
 

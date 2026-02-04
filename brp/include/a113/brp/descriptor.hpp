@@ -14,8 +14,8 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 
 #define A113_VERSION_MAJOR 1
 #define A113_VERSION_MINOR 0
-#define A113_VERSION_PATCH 0
-#define A113_VERSION_STRING "a113v1.0.0"
+#define A113_VERSION_PATCH 3
+#define A113_VERSION_STRING "a113v1.0.3"
 
 #define A113_inline inline
 #define A113_IMPL_FNC
@@ -42,24 +42,30 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #endif
 
 
-#include <cstdint>
-#include <cstring>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
 
 
 namespace a113 {
 
 
 typedef   int   status_t;
-#define A113_OK              0x0
-#define A113_ERR_GENERAL     -0x1
-#define A113_ERR_SYSCALL     -0x2
-#define A113_ERR_WOULD_OVRWR -0x3
-#define A113_ERR_OPEN        -0x4
-#define A113_ERR_EXCOMCALL   -0x5
-#define A113_ERR_LOGIC       -0x6
-#define A113_ERR_USERCALL    -0x7
+
+#define A113_PULL_STATUS(call) (status=(call))
+
+#define A113_OK               0x0
+#define A113_ERR_GENERAL      -0x1
+#define A113_ERR_SYSCALL      -0x2
+#define A113_ERR_WOULD_OVRWR  -0x3
+#define A113_ERR_OPEN         -0x4
+#define A113_ERR_EXCOMCALL    -0x5
+#define A113_ERR_LOGIC        -0x6
+#define A113_ERR_USERCALL     -0x7
+#define A113_ERR_PLATFORMCALL -0x8
+#define A113_ERR_BADARG       -0x9
+#define A113_ERR_FLOW         -0xA
 
 inline static const char* const A113_status_msgs[] = {
     "OK",
@@ -69,7 +75,10 @@ inline static const char* const A113_status_msgs[] = {
     "OPEN",
     "EXCOMCALL",
     "LOGIC",
-    "USERCALL"
+    "USERCALL",
+    "PLATFORMCALL",
+    "BADARG",
+    "FLOW"
 };
 #define A113_STATUS_MSG( s ) (A113_status_msgs[-(s)])
 

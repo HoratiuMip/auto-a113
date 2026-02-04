@@ -7,11 +7,12 @@ project(
 )
 set( A113_VERSION_MAJOR 1 )
 set( A113_VERSION_MINOR 0 )
-set( A113_VERSION_PATCH 0 )
-set( A113_VERSION_STRING "a113v1.0.0" )
+set( A113_VERSION_PATCH 3 )
+set( A113_VERSION_STRING "a113v1.0.3" )
 
 set( CMAKE_CXX_STANDARD 23 )
 set( CMAKE_CXX_EXTENSIONS ON )
+set( CMAKE_CXX_STANDARD_REQUIRED ON )
 
 set( A113_GENERATED_FILE_CAUTION_MSG "/*\n[A113] CAUTION!\nTHIS FILE WAS GENERATED DURING BUILD AND IT WILL BE OVERRIDEN IN THE NEXT ONE.\nDO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.\n*/")
 
@@ -20,6 +21,8 @@ option( A113_Opt_TargetOS_Windows OFF )
 
 option( A113_Opt_TargetPlate_uC OFF )
 
+
+message( STATUS "[A113] CMake script begin..." )
 
 if( NOT DEFINED A113_TARGET_PLATE )
     message( ERROR "[A113] Target plate not specified. Aborted." )
@@ -75,15 +78,18 @@ endfunction( A113_Fnc_CloneRepo )
 
 message( STATUS "[A113] Adding the bedrock plate subdirectory." )
 add_subdirectory( "brp" )
+message( STATUS "[A113] Bedrock plate completed." )
 
 if( A113_Opt_TargetPlate_uC )
     message( STATUS "[A113] Adding the micro-controller plate subdirectory." )
     add_subdirectory( "ucp" )
+    message( STATUS "[A113] Micro-controller plate completed." )
 endif()
 
 if( A113_Opt_TargetPlate_OS )
     message( STATUS "[A113] Adding the operating-system plate subdirectory." )
     add_subdirectory( "osp" )
+    message( STATUS "[A113] Operating-system plate completed." )
 endif()
 
 
@@ -94,3 +100,5 @@ endforeach()
 foreach( rupture ${A113_MAKE_RUPTURES} )
     add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/ruptures/${rupture}" )
 endforeach()
+
+message( STATUS "[A113] CMake script done." )

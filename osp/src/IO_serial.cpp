@@ -90,10 +90,10 @@ status_t Serial::read( const port_R_desc_t& desc_ ) {
     if( desc_.byte_count ) *desc_.byte_count = byte_count;
 
     if( desc_.fail_if_not_all && byte_count != desc_.dst_n ) {
-        return -0x1;
+        return A113_ERR_FLOW;
     }
 
-    return 0x0;
+    return A113_OK;
 }
 
 status_t Serial::write( const port_W_desc_t& desc_ ) {

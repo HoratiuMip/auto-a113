@@ -60,6 +60,7 @@ enum LogComponent_ {
     LogComponent_General, LogComponent_IO, LogComponent_IMM, LogComponent_SCT, _LogComponent_COUNT
 };
 
+/* Auto generate these smh... */
 #define A113_LOGI(...) (a113::_Internal._Component_loggers[ a113::LogComponent_General ]->info( __VA_ARGS__ ))
 #define A113_LOGW(...) (a113::_Internal._Component_loggers[ a113::LogComponent_General ]->warn( __VA_ARGS__ ))
 #define A113_LOGE(...) (a113::_Internal._Component_loggers[ a113::LogComponent_General ]->error( __VA_ARGS__ ))
@@ -113,7 +114,7 @@ struct init_args_t {
 class _INTERNAL {
 public:
     _INTERNAL( void ) {
-    #define _MAKE_LOG_AND_PATERN( c, s ) _Component_loggers[ c ] = spdlog::stdout_color_mt( A113_VERSION_STRING s ); _Component_loggers[ c ]->set_pattern( "[%Y-%m-%d %H:%M:%S] [%^%l%$] [%n] - %v" );
+    #define _MAKE_LOG_AND_PATERN( c, s ) _Component_loggers[ c ] = spdlog::stdout_color_mt( A113_VERSION_STRING s ); _Component_loggers[ c ]->set_pattern( "[%^%l%$] [%Y-%m-%d %H:%M:%S] [%n] - %v" );
         _MAKE_LOG_AND_PATERN( LogComponent_General, "" )     
         _MAKE_LOG_AND_PATERN( LogComponent_IO, "--I/O" );
         _MAKE_LOG_AND_PATERN( LogComponent_IMM, "--IMM" );

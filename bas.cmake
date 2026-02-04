@@ -12,9 +12,20 @@ set( A113_ROOT_DIR "" )
 # - "OS" - target is an operating system ready device. 
 set( A113_TARGET_PLATE "" )
 
-# Target operating system. This is relevant and needs to be set only if A113_TARGET_PLATE was configured to "OS".
-# - "Windows"
+# Target operating system.
+# - OSp:
+#   - "Windows"
+# - uCp:
+#   - <empty>
+#   - "FreeRTOS"
 set( A113_TARGET_OS "" ) 
+
+# Target platform.
+# - OSp:
+#   - <empty>
+# - uCp:
+#   - "esp32"
+set( A113_TARGET_PLATFORM "" )
 
 # Clockworks to configure and build.
 #  - "immersive" - The Immersive framework, used for GUI and 3D rendering.

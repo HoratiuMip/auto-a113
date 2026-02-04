@@ -9,11 +9,6 @@
 
 namespace a113 { namespace io {
 
-
-A113_IMPL_FNC void ipv4_addr_str_t::make_zero( void ) {
-    strcpy( buf, "0.0.0.0" );
-}
-
 A113_IMPL_FNC void ipv4_addr_str_t::from_ptr( ipv4_addr_t addr_, ipv4_addr_str_t* ptr_ ) {
     int n = 0x0;
 #ifdef A113_TARGET_END_BIG
@@ -59,5 +54,23 @@ A113_IMPL_FNC ipv4_addr_t ipv4_addr_str_t::from( const char* addr_str_ ) {
     return result;
 }
 
+
+A113_IMPL_FNC void bt_addr_str_t::from_ptr( bt_addr_t addr_, bt_addr_str_t* ptr_, char x_ ) {
+    auto* b = addr_.b;
+    if( 'X' == x_ ) sprintf( ptr_->buf, "%02X:%02X:%02X:%02X:%02X:%02X", b[0x0], b[0x1], b[0x2], b[0x3], b[0x4], b[0x5] );
+    else sprintf( ptr_->buf, "%02x:%02x:%02x:%02x:%02x:%02x", b[0x0], b[0x1], b[0x2], b[0x3], b[0x4], b[0x5] );
+}
+
+A113_IMPL_FNC bt_addr_str_t bt_addr_str_t::from( bt_addr_t addr_, char x_ ) {
+    bt_addr_str_t res = {};
+    bt_addr_str_t::from_ptr( addr_, &res );
+    return res;
+}
+
+A113_IMPL_FNC bt_addr_t bt_addr_str_t::from( const bt_addr_str_t& addr_str_ ) {
+    unsigned int b[ 6 ];
+    A113_ASSERT_OR( 6 == sscanf( addr_str_.buf, "%u:%u:%u:%u:%u:%u", b, b+1, b+2, b+3, b+4, b+5 ) ) return { .b = { 0,0,0,0,0,0 } };
+    return { .b = { (uint8_t)b[0x0], (uint8_t)b[0x1], (uint8_t)b[0x2], (uint8_t)b[0x3], (uint8_t)b[0x4], (uint8_t)b[0x5] } };
+}
 
 } };
