@@ -1,6 +1,6 @@
 #pragma once
 /**
- * @file: OSp/tempo.hpp
+ * @file: osp/tempo.hpp
  * @brief: 
  * @details
  * @authors: Vatca "Mipsan" Tudor-Horatiu

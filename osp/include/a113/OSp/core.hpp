@@ -11,6 +11,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#include <any>
 #include <atomic>
 #include <condition_variable>
 #include <filesystem>
@@ -24,6 +25,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <queue>
 
 #ifdef A113_TARGET_OS_WINDOWS
     #define WINVER 0x0A00

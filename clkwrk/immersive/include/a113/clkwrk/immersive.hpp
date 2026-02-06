@@ -68,6 +68,11 @@ public:
     // }
 
 public:
+    auto native_window_handle( void ) {
+        return cluster->handle();
+    }
+
+public:
     status_t set_icon( GLFWimage& img_ ) {
         glfwSetWindowIcon( cluster->handle(), 1, &img_ );
         return A113_OK;
