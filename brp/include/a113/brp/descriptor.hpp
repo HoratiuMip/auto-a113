@@ -40,6 +40,12 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #ifndef _FBV
     #define _FBV(x,f,b) (f?_SBV(x,b):_RBV(x,b))
 #endif
+#ifndef SET
+    #define SET 0x1
+#endif
+#ifndef RESET
+    #define RESET 0x0
+#endif
 
 
 #include <stdio.h>
@@ -54,6 +60,8 @@ namespace a113 {
 typedef   int   status_t;
 
 #define A113_PULL_STATUS(call) (status=(call))
+#define A113_ASSERT_STATUS_OR(c) if(a113::status_t status_=(c);A113_OK!=status_)
+#define A113_ASSERT_STATUS_OR_RET(c) A113_ASSERT_STATUS_OR(c) {return status_;}
 
 #define A113_OK               0x0
 #define A113_ERR_GENERAL      -0x1
@@ -66,8 +74,10 @@ typedef   int   status_t;
 #define A113_ERR_PLATFORMCALL -0x8
 #define A113_ERR_BADARG       -0x9
 #define A113_ERR_FLOW         -0xA
+#define A113_ERR_NOT_IMPL     -0xB
+#define A113_ERR_BUSY         -0xC
 
-inline static const char* const A113_status_msgs[] = {
+inline static const char* const status_msgs[] = {
     "OK",
     "GENERAL",
     "SYSCALL",
@@ -78,9 +88,13 @@ inline static const char* const A113_status_msgs[] = {
     "USERCALL",
     "PLATFORMCALL",
     "BADARG",
-    "FLOW"
+    "FLOW",
+    "NOT_IMPL",
+    "BUSY"
 };
-#define A113_STATUS_MSG( s ) (A113_status_msgs[-(s)])
+#define A113_STATUS_MSG( s ) (a113::status_msgs[-(s)])
+
+#define A113_UNIMPLEMENTED {return A113_ERR_NOT_IMPL;}
 
 struct MDsc {
     typedef   size_t   n_t;
@@ -88,7 +102,6 @@ struct MDsc {
     char*   ptr   = nullptr;
     n_t     n     = 0;    
 };
-
 
 };
 

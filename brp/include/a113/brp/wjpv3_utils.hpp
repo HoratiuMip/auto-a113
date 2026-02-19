@@ -1,6 +1,8 @@
+#warning "[DEPRECATED] Outdated WJP version. Switch to WJPv4."
+
 #pragma once
 /**
- * @file: BRp/wjpv3_utils.hpp
+ * @file: brp/wjpv3_utils.hpp
  * @brief
  * @details
  * @authors: Vatca "Mipsan" Tudor-Horatiu
