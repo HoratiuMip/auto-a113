@@ -9,13 +9,13 @@
 
 namespace a113::io {
 
-#define _CAGP _conn.addr_str.get(), _conn.port
+#define _CAGP _conn.addr_str.str(), _conn.port
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::bind_peer( ipv4_addr_t addr_, ipv4_port_t port_ ) {
     A113_ASSERT_OR( false ==_conn.alive.load( std::memory_order_acquire ) ) {
         A113_LOGE_IO_INT( 
             A113_ERR_WOULD_OVRWR, "Binding another peer whilst alive. [{}:{}] -> [{}:{}]",
-             _CAGP, ipv4_addr_str_t::from( addr_ ).get(), port_ 
+             _CAGP, ipv4_addr_str_t::from( addr_ ).str(), port_ 
         );
         return -0x1;
     }
@@ -43,7 +43,11 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::uplink( void ) {
     }
 
     A113_ON_SCOPE_EXIT_L( [ &sock ] -> void {
-        closesocket( sock );
+    #ifdef A113_TARGET_OS_WINDOWS
+        ::closesocket( sock );
+    #elifdef A113_TARGET_OS_LINUX
+        ::close( sock )
+    #endif
     } );
 
     sockaddr_in desc = {};
@@ -73,7 +77,11 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::downlink( void ) {
 
     _conn.alive.store( false, std::memory_order_seq_cst );
     
-    status = ::closesocket( std::exchange( _conn.sock, INVALID_SOCKET ) );
+#ifdef A113_TARGET_OS_WINDOWS
+    ::closesocket( std::exchange( _conn.sock, INVALID_SOCKET ) );
+#elifdef A113_TARGET_OS_LINUX
+    ::close( std::exchange( _conn.sock, INVALID_SOCKET ) )
+#endif
     A113_ASSERT_OR( 0x0 == status ) {
         A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad socket closure on [{}:{}].", _CAGP );
     }
@@ -100,7 +108,11 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     }
 
     A113_ON_SCOPE_EXIT_L( [ &sock ] -> void {
+    #ifdef A113_TARGET_OS_WINDOWS
         ::closesocket( sock );
+    #elifdef A113_TARGET_OS_LINUX
+        ::close( sock )
+    #endif
     } );
 
     sockaddr_in desc = {};
@@ -123,6 +135,9 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     }
     
     sockaddr_in in_desc    = {}; 
+#ifdef A113_TARGET_OS_LINUX
+    unsigned
+#endif
     int         in_desc_sz = sizeof( sockaddr_in );
     memset( &in_desc, 0, sizeof( sockaddr_in ) );
 
