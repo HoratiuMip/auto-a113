@@ -46,7 +46,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::uplink( void ) {
     #ifdef A113_TARGET_OS_WINDOWS
         ::closesocket( sock );
     #elifdef A113_TARGET_OS_LINUX
-        ::close( sock )
+        ::close( sock );
     #endif
     } );
 
@@ -80,7 +80,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::downlink( void ) {
 #ifdef A113_TARGET_OS_WINDOWS
     ::closesocket( std::exchange( _conn.sock, INVALID_SOCKET ) );
 #elifdef A113_TARGET_OS_LINUX
-    ::close( std::exchange( _conn.sock, INVALID_SOCKET ) )
+    ::close( std::exchange( _conn.sock, INVALID_SOCKET ) );
 #endif
     A113_ASSERT_OR( 0x0 == status ) {
         A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad socket closure on [{}:{}].", _CAGP );
@@ -111,7 +111,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     #ifdef A113_TARGET_OS_WINDOWS
         ::closesocket( sock );
     #elifdef A113_TARGET_OS_LINUX
-        ::close( sock )
+        ::close( sock );
     #endif
     } );
 
