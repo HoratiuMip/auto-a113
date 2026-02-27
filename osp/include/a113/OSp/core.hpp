@@ -39,6 +39,16 @@
     #include <cfgmgr32.h>
     #include <devguid.h>
     #include <initguid.h>
+#elifdef A113_TARGET_OS_LINUX
+    #include <sys/types.h>
+    
+    #include <unistd.h>  
+    
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+
+    #include <cerrno>
 #endif
 
 namespace a113 {
@@ -100,7 +110,11 @@ enum LogComponent_ {
 
 #define A113_SYS_ERR_MSG( s ) (std::system_category().default_error_condition((s)).message())
 #define _A113_LOG_ERR_EX_FMT_STR " [{}] [{} - #{}]"
-#define _A113_LOG_ERR_EX_ARGS( s ) A113_STATUS_MSG(s), A113_SYS_ERR_MSG(GetLastError()), GetLastError()
+#ifdef A113_TARGET_OS_WINDOWS
+    #define _A113_LOG_ERR_EX_ARGS( s ) A113_STATUS_MSG(s), A113_SYS_ERR_MSG(GetLastError()), GetLastError()
+#elifdef A113_TARGET_OS_LINUX
+    #define _A113_LOG_ERR_EX_ARGS( s ) A113_STATUS_MSG(s), A113_SYS_ERR_MSG(errno), errno
+#endif
 
 
 #define A113_TXTUUID_FROM_THIS (std::format("a113@{}",(void*)this).c_str())
