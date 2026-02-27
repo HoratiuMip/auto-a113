@@ -151,5 +151,4 @@ endforeach()
 
 configure_file( "${CMAKE_CURRENT_LIST_DIR}/include/a113/osp/osp.hpp.in" "${CMAKE_CURRENT_LIST_DIR}/include/a113/osp/osp.hpp" )
 
-
-add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/fondles" )
+#add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/fondles" )
