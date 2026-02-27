@@ -10,6 +10,7 @@
 namespace a113::io {
 
 static status_t _populate_ports( COM_Ports::container_t& ports_, int* count_ = nullptr ) {
+#ifdef A113_TARGET_OS_WINDOWS
     HDEVINFO dev_set = SetupDiGetClassDevs( &GUID_DEVCLASS_PORTS, NULL, NULL, DIGCF_PRESENT );
     A113_ASSERT_OR( dev_set != INVALID_HANDLE_VALUE ) return A113_ERR_SYSCALL;
 
@@ -39,8 +40,12 @@ static status_t _populate_ports( COM_Ports::container_t& ports_, int* count_ = n
     SetupDiDestroyDeviceInfoList( dev_set );
     if( count_ ) *count_ = count;
     return A113_OK;
+#else
+    return A113_ERR_NOT_IMPL;
+#endif
 }
 
+#ifdef A113_TARGET_OS_WINDOWS
 static DWORD CALLBACK _listen_callback (
     [[maybe_unused]]HCMNOTIFICATION,
     PVOID                            that_,
@@ -60,6 +65,7 @@ static DWORD CALLBACK _listen_callback (
 
     return 0x0;
 }
+#endif
 
 A113_IMPL_FNC COM_Ports& COM_Ports::refresh( void ) {
     auto     ports      = this->control();
@@ -87,6 +93,7 @@ l_fail_no_err:
 }
 
 A113_IMPL_FNC status_t COM_Ports::register_listen( void ) {
+#ifdef A113_TARGET_OS_WINDOWS
     CM_NOTIFY_FILTER filter {
         .cbSize                         = sizeof( CM_NOTIFY_FILTER ),
         .FilterType                     = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE,
@@ -94,10 +101,17 @@ A113_IMPL_FNC status_t COM_Ports::register_listen( void ) {
     };
 
     return CM_Register_Notification( &filter, ( PVOID )this, &_listen_callback, &_notif ) == CR_SUCCESS ? 0x0 : -0x1;
+#else
+    return A113_ERR_NOT_IMPL;
+#endif
 }
 
 A113_IMPL_FNC status_t COM_Ports::unregister_listen( void ) {
+#ifdef A113_TARGET_OS_WINDOWS
     return CM_Unregister_Notification( _notif ) == CR_SUCCESS ? 0x0 : -0x1;
+#else
+    return A113_ERR_NOT_IMPL;
+#endif
 }
 
 A113_IMPL_FNC status_t COM_Ports::register_refresh_callback( const char* key_, refresh_cb_t cb_ ) {
