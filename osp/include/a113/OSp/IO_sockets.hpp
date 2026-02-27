@@ -1,6 +1,6 @@
 #pragma once
 /**
- * @file: OSp/IO_sockets.hpp
+ * @file: osp/IO_sockets.hpp
  * @brief: 
  * @details
  * @authors: Vatca "Mipsan" Tudor-Horatiu
@@ -18,7 +18,11 @@ namespace a113::io {
 #ifdef A113_TARGET_OS_WINDOWS
     typedef   ::SOCKET   socket_t;
 
-    inline constexpr socket_t   NULL_SOCKET   = INVALID_SOCKET;
+    inline constexpr socket_t   INVALID_SOCKET   = ::INVALID_SOCKET;
+#elifdef A113_TARGET_OS_LINUX
+    typedef   int   socket_t;
+
+    inline constexpr socket_t   INVALID_SOCKET   = -1;
 #endif 
 
 
@@ -26,7 +30,7 @@ class IPv4_TCP_socket : public Port {
 _A113_PROTECTED:
     struct {
         std::atomic_bool   alive      = { false };
-        socket_t           sock       = NULL_SOCKET;
+        socket_t           sock       = INVALID_SOCKET;
         ipv4_addr_str_t    addr_str   = {};
         ipv4_addr_t        addr       = 0x0;
         ipv4_port_t        port       = 0x0;

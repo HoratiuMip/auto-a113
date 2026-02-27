@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.30.0 )
+cmake_minimum_required( VERSION 3.28.0 )
 
 
 ## EXCOM dependencies.
@@ -82,6 +82,8 @@ if( A113_Opt_TargetOS_Windows )
         PUBLIC "libcomctl32.a"
         PUBLIC "libcomdlg32.a"
     )
+elseif( A113_Opt_TargetOS_Linux )
+    target_compile_definitions( A113_OSp PUBLIC A113_TARGET_OS_LINUX )
 endif()
 
 ## Link A113 with the EXCOM dependencies. 

@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.30.0 )
+cmake_minimum_required( VERSION 3.28.0 )
 
 project(
     A113
@@ -18,6 +18,7 @@ set( A113_GENERATED_FILE_CAUTION_MSG "/*\n[A113] CAUTION!\nTHIS FILE WAS GENERAT
 
 option( A113_Opt_TargetPlate_OS OFF )
 option( A113_Opt_TargetOS_Windows OFF )
+option( A113_Opt_TargetOS_Linux OFF )
 
 option( A113_Opt_TargetPlate_uC OFF )
 
@@ -39,6 +40,8 @@ if( A113_TARGET_PLATE STREQUAL "OS" )
 
     if( A113_TARGET_OS STREQUAL "Windows" )
         set( A113_Opt_TargetOS_Windows ON )
+    elseif( A113_TARGET_OS STREQUAL "Linux" )
+        set( A113_Opt_TargetOS_Linux ON )
     else()
         message( ERROR "[A113] Target operating system \"${A113_TARGET_OS}\" is not valid." )
         return()

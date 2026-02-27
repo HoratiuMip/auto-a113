@@ -20,7 +20,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::bind_peer( ipv4_addr_t addr_, ipv4_port_
         return -0x1;
     }
 
-    _conn.sock     = NULL_SOCKET;
+    _conn.sock     = INVALID_SOCKET;
     _conn.addr_str = ipv4_addr_str_t::from( addr_ );
     _conn.addr     = addr_;
     _conn.port     = port_;
@@ -60,7 +60,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::uplink( void ) {
         return status;
     }
 
-    _conn.sock     = sock;
+    _conn.sock = sock;
     _conn.alive.store( true, std::memory_order_release );
 
     A113_LOGI_IO( "Uplinked to [{}:{}].", _CAGP );
@@ -73,7 +73,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::downlink( void ) {
 
     _conn.alive.store( false, std::memory_order_seq_cst );
     
-    status = ::closesocket( std::exchange( _conn.sock, NULL_SOCKET ) );
+    status = ::closesocket( std::exchange( _conn.sock, INVALID_SOCKET ) );
     A113_ASSERT_OR( 0x0 == status ) {
         A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad socket closure on [{}:{}].", _CAGP );
     }
@@ -122,7 +122,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
         A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad socket listen on [{}:{}].", _CAGP );
     }
     
-    sockaddr_in in_desc = {}; 
+    sockaddr_in in_desc    = {}; 
     int         in_desc_sz = sizeof( sockaddr_in );
     memset( &in_desc, 0, sizeof( sockaddr_in ) );
 

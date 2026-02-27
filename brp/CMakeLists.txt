@@ -1,7 +1,7 @@
-cmake_minimum_required( VERSION 3.30.0 )
+cmake_minimum_required( VERSION 3.28.0 )
 
 
-set( _chain_dir "${CMAKE_CURRENT_LIST_DIR}/chain" )
+set( _excom_dir "${CMAKE_CURRENT_LIST_DIR}/excom" )
 
 configure_file( "${CMAKE_CURRENT_LIST_DIR}/include/A113/BRp/descriptor.hpp.in" "${CMAKE_CURRENT_LIST_DIR}/include/A113/BRp/descriptor.hpp" )
 

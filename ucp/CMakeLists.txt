@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.30.0 )
+cmake_minimum_required( VERSION 3.28.0 )
 
 file( GLOB _source_files "${CMAKE_CURRENT_LIST_DIR}/*.cpp" )
 

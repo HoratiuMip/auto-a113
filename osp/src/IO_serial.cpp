@@ -9,7 +9,7 @@
 
 namespace a113::io {
 
-
+#ifdef A113_TARGET_OS_WINDOWS
 status_t Serial::open( const char* device_, const serial_config_t& config_ ) {
     if( _port != SERIAL_NULL_HANDLE ) this->close();
 
@@ -122,6 +122,6 @@ status_t Serial::purge( void ) const {
     }
     return 0x0;
 }
-
+#endif
 
 }

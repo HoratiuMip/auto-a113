@@ -1,6 +1,6 @@
 #pragma once
 /**
- * @file: BRp/block_difusser.hpp
+ * @file: brp/block_diffuser.hpp
  * @brief:
  * @details
  * @authors: Vatca "Mipsan" Tudor-Horatiu
