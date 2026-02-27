@@ -41,7 +41,9 @@ public:
     }
 
 _A113_PROTECTED:
+#ifdef A113_TARGET_OS_WINDOWS
     HCMNOTIFICATION                         _notif            = nullptr;
+#endif
     std::map< std::string, refresh_cb_t >   _refresh_cb_map   = {};
     std::mutex                              _refresh_cb_mtx   = {};
     COM_Ports_config_t                      _config           = {};

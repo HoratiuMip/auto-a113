@@ -78,7 +78,7 @@ _A113_PROTECTED:
             switch( mode_ ) {
                 case DispenserMode_Lock: 
                     new ( &lock.block ) HVec< _T_ >      { HVec< _T_ >::make() };
-                    new ( &lock.block ) std::shared_mutex{};
+                    new ( &lock.mtx )   std::shared_mutex{};
                     break;
                 case DispenserMode_Drop:
                     new ( &drop.block ) HVec< _T_ >{ HVec< _T_ >::make() };
