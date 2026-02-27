@@ -2,7 +2,7 @@ cmake_minimum_required( VERSION 3.28.0 )
 
 set( _excom_dir "${CMAKE_CURRENT_LIST_DIR}/excom" )
 
-configure_file( "${CMAKE_CURRENT_LIST_DIR}/include/A113/brp/descriptor.hpp.in" "${CMAKE_CURRENT_LIST_DIR}/include/A113/brp/descriptor.hpp" )
+configure_file( "${CMAKE_CURRENT_LIST_DIR}/include/a113/brp/descriptor.hpp.in" "${CMAKE_CURRENT_LIST_DIR}/include/a113/brp/descriptor.hpp" )
 
 file( GLOB _source_files "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp" )
 
