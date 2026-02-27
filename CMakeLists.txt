@@ -61,11 +61,13 @@ include( FetchContent )
 cmake_policy( SET CMP0169 OLD )
 
 macro( A113_Mac__CloneRepo_Confirm )
-    if( DEFINED A113_POPCOUNT_CLONES )
-        string( SUBSTRING "${A113_POPCOUNT_CLONES}" 0 1 _popped )
-        message( STATUS "[A113] Remaining clone popcount: ${A113_POPCOUNT_CLONES}." )
-        string( SUBSTRING "${A113_POPCOUNT_CLONES}" 1 -1 _next_popcounts )
-        set( A113_POPCOUNT_CLONES ${_next_popcounts} PARENT_SCOPE )
+    if( DEFINED A113_EXCOM_POPCOUNT )
+        string( SUBSTRING "${A113_EXCOM_POPCOUNT}" 0 1 _popped )
+        message( STATUS "[A113] Remaining clone popcount: ${A113_EXCOM_POPCOUNT}." )
+        string( SUBSTRING "${A113_EXCOM_POPCOUNT}" 1 -1 _next_popcounts )
+
+        set( A113_EXCOM_POPCOUNT ${_next_popcounts} PARENT_SCOPE )
+        
         if( NOT _popped STREQUAL "y" )
             message( STATUS "[A113] Bypassing repository \"${url}\", tag \"${tag}\"." )
             return()
