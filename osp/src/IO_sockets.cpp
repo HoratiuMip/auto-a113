@@ -132,6 +132,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     status = ::listen( sock, 1 );
     A113_ASSERT_OR( status == 0x0 ) {
         A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad socket listen on [{}:{}].", _CAGP );
+        return A113_ERR_SYSCALL;
     }
     
     sockaddr_in in_desc    = {}; 
@@ -143,8 +144,8 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
 
     socket_t in_sock  = ::accept( sock, ( sockaddr* )&in_desc, &in_desc_sz );
     A113_ASSERT_OR( in_sock >= 0 ) {
-        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad socket acceptance on [{}:{}].", _CAGP );
-        return -0x1;
+        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad socket accept on [{}:{}].", _CAGP );
+        return A113_ERR_SYSCALL;
     }
 
     _conn.sock     = in_sock;
@@ -154,16 +155,21 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     _conn.alive.store( true, std::memory_order_release );
 
     A113_LOGI_IO( "Accepted [{}:{}].", _CAGP );
-
-    return status;
+    return A113_OK;
 }
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::read( const port_R_desc_t& desc_ ) {
-    return ::recv( _conn.sock, desc_.dst_ptr, desc_.dst_n, MSG_WAITALL );
+    auto byte_count = ::recv( _conn.sock, desc_.dst_ptr, desc_.dst_n, desc_.fail_if_not_all ? MSG_WAITALL : 0x0 );
+    if( desc_.byte_count ) *desc_.byte_count = byte_count;
+    if( desc_.fail_if_not_all && byte_count != desc_.dst_n ) return A113_ERR_FLOW;
+    return A113_OK;
 }
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::write( const port_W_desc_t& desc_ ) {
-    return ::send( _conn.sock, desc_.src_ptr, desc_.src_n, 0 );
+    auto byte_count = ::send( _conn.sock, desc_.src_ptr, desc_.src_n, 0 );
+    if( desc_.byte_count ) *desc_.byte_count = byte_count;
+    if( desc_.fail_if_not_all && byte_count != desc_.src_n ) return A113_ERR_FLOW;
+    return A113_OK;
 }
 
 

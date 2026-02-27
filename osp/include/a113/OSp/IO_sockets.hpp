@@ -17,8 +17,6 @@ namespace a113::io {
 
 #ifdef A113_TARGET_OS_WINDOWS
     typedef   ::SOCKET   socket_t;
-
-    inline constexpr socket_t   INVALID_SOCKET   = ::INVALID_SOCKET;
 #elifdef A113_TARGET_OS_LINUX
     typedef   int   socket_t;
 
