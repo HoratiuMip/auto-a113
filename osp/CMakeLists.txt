@@ -12,10 +12,8 @@ A113_Fnc_CloneRepo( "https://github.com/glfw/glfw.git" "3.4" glfw "${_excom_dir}
 A113_Fnc_CloneRepo( "https://github.com/Perlmint/glew-cmake.git" "glew-cmake-2.2.0" glew "${_excom_dir}" )
 A113_Fnc_CloneRepo( "https://github.com/nothings/stb.git" "" stb "${_excom_dir}" )
 A113_Fnc_CloneRepo( "https://github.com/tinyobjloader/tinyobjloader.git" "v1.0.6" tinyobj "${_excom_dir}" )
-
 # JSON
 A113_Fnc_CloneRepo( "https://github.com/nlohmann/json.git" "v3.12.0" nlohmann_json "${_excom_dir}")
-
 # Dear ImGUI
 A113_Fnc_CloneRepo( "https://github.com/ocornut/imgui.git" "v1.91.9-docking" imgui "${_excom_dir}" )
 A113_Fnc_CloneRepo( "https://github.com/epezent/implot.git" "v0.16" implot "${_excom_dir}" )

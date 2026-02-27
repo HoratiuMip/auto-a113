@@ -22,6 +22,8 @@ option( A113_Opt_TargetOS_Linux OFF )
 
 option( A113_Opt_TargetPlate_uC OFF )
 
+option( A113_Opt_ConfirmClones OFF )
+
 
 message( STATUS "[A113] CMake script begin..." )
 
@@ -57,22 +59,41 @@ endif()
 
 include( FetchContent )
 cmake_policy( SET CMP0169 OLD )
-function( A113_Fnc_JustCloneRepo url tag alias chain_dir )
-    message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${chain_dir}/${alias}\"." )
+
+macro( A113_Mac__CloneRepo_Confirm )
+    if( DEFINED A113_POPCOUNT_CLONES )
+        string( SUBSTRING "${A113_POPCOUNT_CLONES}" 0 1 _popped )
+        message( STATUS "[A113] Remaining clone popcount: ${A113_POPCOUNT_CLONES}." )
+        string( SUBSTRING "${A113_POPCOUNT_CLONES}" 1 -1 _next_popcounts )
+        set( A113_POPCOUNT_CLONES ${_next_popcounts} PARENT_SCOPE )
+        if( NOT _popped STREQUAL "y" )
+            message( STATUS "[A113] Bypassing repository \"${url}\", tag \"${tag}\"." )
+            return()
+        endif()
+    endif()
+endmacro()
+
+function( A113_Fnc_JustCloneRepo url tag alias excom_dir )
+    A113_Mac__CloneRepo_Confirm()
+
+    message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${excom_dir}/${alias}\"." )
     FetchContent_Declare(
         ${alias}
         GIT_REPOSITORY "${url}"
-        SOURCE_DIR     "${chain_dir}/${alias}"
+        SOURCE_DIR     "${excom_dir}/${alias}"
         GIT_TAG        "${tag}"
     )
     FetchContent_Populate( ${alias} )
 endfunction( A113_Fnc_JustCloneRepo )
-function( A113_Fnc_CloneRepo url tag alias chain_dir )
-    message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${chain_dir}/${alias}\"." )
+
+function( A113_Fnc_CloneRepo url tag alias excom_dir )
+    A113_Mac__CloneRepo_Confirm()
+
+    message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${excom_dir}/${alias}\"." )
     FetchContent_Declare(
         ${alias}
         GIT_REPOSITORY "${url}"
-        SOURCE_DIR     "${chain_dir}/${alias}"
+        SOURCE_DIR     "${excom_dir}/${alias}"
         GIT_TAG        "${tag}"
     )
     FetchContent_MakeAvailable( ${alias} )
