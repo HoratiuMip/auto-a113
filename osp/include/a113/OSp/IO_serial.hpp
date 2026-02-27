@@ -14,7 +14,7 @@
 #ifdef A113_TARGET_OS_WINDOWS
     typedef   ::HANDLE   serial_handle_t;
 
-    inline const serial_handle_t   SERIAL_NULL_HANDLE       = INVALID_HANDLE_VALUE;
+    inline const serial_handle_t   SERIAL_INVALID_HANDLE    = INVALID_HANDLE_VALUE;
 
     inline constexpr uint8_t       SERIAL_PARITY_NONE       = NOPARITY; 
     inline constexpr uint8_t       SERIAL_PARITY_ODD        = ODDPARITY; 
@@ -25,6 +25,20 @@
     inline constexpr uint8_t       SERIAL_STOPBIT_ONE       = ONESTOPBIT;
     inline constexpr uint8_t       SERIAL_STOPBIT_ONE_HALF  = ONE5STOPBITS;
     inline constexpr uint8_t       SERIAL_STOPBIT_TWO       = TWOSTOPBITS;
+#elifdef A113_TARGET_OS_LINUX
+    typedef   int   serial_handle_t;
+
+    inline const serial_handle_t   SERIAL_INVALID_HANDLE    = -1;
+
+    inline constexpr uint8_t       SERIAL_PARITY_NONE       = 0; 
+    inline constexpr uint8_t       SERIAL_PARITY_ODD        = 0; 
+    inline constexpr uint8_t       SERIAL_PARITY_EVEN       = 0; 
+    inline constexpr uint8_t       SERIAL_PARITY_MARK       = 0; 
+    inline constexpr uint8_t       SERIAL_PARITY_SPACE      = 0; 
+
+    inline constexpr uint8_t       SERIAL_STOPBIT_ONE       = 0;
+    inline constexpr uint8_t       SERIAL_STOPBIT_ONE_HALF  = 0;
+    inline constexpr uint8_t       SERIAL_STOPBIT_TWO       = 0;
 #endif 
 
 namespace a113::io { 
@@ -54,7 +68,7 @@ public:
     }
 
 _A113_PROTECTED:
-    serial_handle_t   _port       = SERIAL_NULL_HANDLE;
+    serial_handle_t   _port       = SERIAL_INVALID_HANDLE;
     std::string       _device     = "";
     serial_config_t   _config     = {};
 
@@ -64,7 +78,7 @@ public:
     A113_inline std::string_view device( void ) const { return _device; }
 
 public:
-    A113_inline bool is_connected( void ) const { return _port != SERIAL_NULL_HANDLE; }
+    A113_inline bool is_connected( void ) const { return _port != SERIAL_INVALID_HANDLE; }
 
 public:
     status_t open( const char* device_, const serial_config_t& config_ );

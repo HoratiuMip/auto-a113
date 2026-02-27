@@ -11,17 +11,17 @@ namespace a113::io {
 
 #ifdef A113_TARGET_OS_WINDOWS
 status_t Serial::open( const char* device_, const serial_config_t& config_ ) {
-    if( _port != SERIAL_NULL_HANDLE ) this->close();
+    if( _port != SERIAL_INVALID_HANDLE ) this->close();
 
     _port = CreateFileA( device_, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
 
     A113_ON_SCOPE_EXIT_L( [ this ] ( void ) -> void {
-        if( _port != SERIAL_NULL_HANDLE ) {
-            CloseHandle( std::exchange( _port, SERIAL_NULL_HANDLE ) );
+        if( _port != SERIAL_INVALID_HANDLE ) {
+            CloseHandle( std::exchange( _port, SERIAL_INVALID_HANDLE ) );
         }
     } );
 
-    A113_ASSERT_OR( _port != SERIAL_NULL_HANDLE ) {
+    A113_ASSERT_OR( _port != SERIAL_INVALID_HANDLE ) {
         A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Could not open serial port \"{}\".", device_ );
         return A113_ERR_SYSCALL;
     }
@@ -73,7 +73,7 @@ status_t Serial::open( const char* device_, const serial_config_t& config_ ) {
 }
 
 status_t Serial::close( void ) {
-    if( _port == SERIAL_NULL_HANDLE ) return 0x0;
+    if( _port == SERIAL_INVALID_HANDLE ) return 0x0;
     
     if( _config.purge_on_close ) this->purge();
     CloseHandle( std::exchange( _port, INVALID_HANDLE_VALUE ) );
