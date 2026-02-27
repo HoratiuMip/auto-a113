@@ -33,6 +33,12 @@ set( A113_MAKE_CLOCKWORKS
     "" 
 )
 
+# * Which external components to make, indicated by a string containing 'y' and 'n' ( for "yes" and "no" ), in the order in which they are built in the script.
+# Example: "ynnny" - makes the first and fifth external component.
+set( A113_EXCOM_POPCOUNT
+    "y"
+)
+
 # Add auto-a113.
 add_subdirectory( "${A113_ROOT_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/auto-a113" )
 # ===== auto-a113 BAS end =====

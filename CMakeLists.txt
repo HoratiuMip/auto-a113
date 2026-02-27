@@ -22,7 +22,7 @@ option( A113_Opt_TargetOS_Linux OFF )
 
 option( A113_Opt_TargetPlate_uC OFF )
 
-option( A113_Opt_ConfirmClones OFF )
+option( A113_Opt_ OFF )
 
 
 message( STATUS "[A113] CMake script begin..." )
@@ -63,24 +63,29 @@ if( POLICY CMP0169 )
     cmake_policy( SET CMP0169 OLD )
 endif()
 
-macro( A113_Mac__CloneRepo_Confirm )
-    if( DEFINED A113_EXCOM_POPCOUNT )
-        string( SUBSTRING "${A113_EXCOM_POPCOUNT}" 0 1 _popped )
-        message( STATUS "[A113] Remaining clone popcount: ${A113_EXCOM_POPCOUNT}." )
-        string( SUBSTRING "${A113_EXCOM_POPCOUNT}" 1 -1 _next_popcounts )
-
-        set( A113_EXCOM_POPCOUNT ${_next_popcounts} PARENT_SCOPE )
-        
-        if( NOT _popped STREQUAL "y" )
-            message( STATUS "[A113] Bypassing repository \"${url}\", tag \"${tag}\"." )
-            return()
-        endif()
+set( A113_Flag_ExcomActive OFF )
+function( A113_Fnc_PopExcom excom_name )
+    if( NOT DEFINED A113_EXCOM_POPCOUNT )
+        message( ERROR "[A113] Excom popcount is not defined." )
+        set( A113_Flag_ExcomActive OFF PARENT_SCOPE )
+        return()
     endif()
-endmacro()
+
+    string( SUBSTRING "${A113_EXCOM_POPCOUNT}" 0 1 _popped )
+    string( SUBSTRING "${A113_EXCOM_POPCOUNT}" 1 -1 _next_popcount )
+
+    set( A113_EXCOM_POPCOUNT ${_next_popcount} PARENT_SCOPE )
+    
+    if( NOT _popped STREQUAL "y" )
+        message( STATUS "[A113] Bypassing excom \"${excom_name}\". Remaining: ${_next_popcount}." )
+        set( A113_Flag_ExcomActive OFF PARENT_SCOPE )
+    else()
+        message( STATUS "[A113] Diving excom \"${excom_name}\". Remaining: ${_next_popcount}." )
+        set( A113_Flag_ExcomActive ON PARENT_SCOPE )
+    endif()
+endfunction()
 
 function( A113_Fnc_JustCloneRepo url tag alias excom_dir )
-    A113_Mac__CloneRepo_Confirm()
-
     message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${excom_dir}/${alias}\"." )
     FetchContent_Declare(
         ${alias}
@@ -92,8 +97,6 @@ function( A113_Fnc_JustCloneRepo url tag alias excom_dir )
 endfunction( A113_Fnc_JustCloneRepo )
 
 function( A113_Fnc_CloneRepo url tag alias excom_dir )
-    A113_Mac__CloneRepo_Confirm()
-
     message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${excom_dir}/${alias}\"." )
     FetchContent_Declare(
         ${alias}
