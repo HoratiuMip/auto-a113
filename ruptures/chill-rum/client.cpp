@@ -10,7 +10,7 @@ int main( int argc, char* argv[] )  {
     init( argc, argv, { flags: InitFlags_Sockets } );
 
     io::IPv4_TCP_socket server;
-    server.bind( "86.121.161.116", 58008 );
+    server.bind( "", 58008 );
     server.connect();
 
     for(;;) {

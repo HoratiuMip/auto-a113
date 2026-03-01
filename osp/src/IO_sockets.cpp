@@ -44,7 +44,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( void ) {
     A113_ON_SCOPE_EXIT_L( [ &sock ] -> void { ::closesocket( sock ); } );
 
     sockaddr_in desc = {};
-    memset( &desc, 0, sizeof( sockaddr_in ) );
+    ZeroMemory( &desc, sizeof( sockaddr_in ) );
 
     desc.sin_family      = AF_INET;
     desc.sin_addr.s_addr = _conn.addr;
@@ -90,7 +90,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     A113_ON_SCOPE_EXIT_L( [ &sock ] -> void { ::closesocket( sock ); } );
 
     sockaddr_in desc = {};
-    memset( &desc, 0, sizeof( sockaddr_in ) );
+    ZeroMemory( &desc, sizeof( sockaddr_in ) );
 
     desc.sin_family      = AF_INET;
     desc.sin_addr.s_addr = 0x0;
@@ -250,9 +250,9 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     sockaddr_in  in_desc    = {}; 
     unsigned int in_desc_sz = sizeof( sockaddr_in );
 
-    ZeroMemory( &in_desc, sizeof( sockaddr_in ) );
+    memset( &in_desc, 0, sizeof( sockaddr_in ) );
 
-    ::SOCKET in_sock = ::accept( sock, ( sockaddr* )&in_desc, &in_desc_sz );
+    int in_sock = ::accept( sock, ( sockaddr* )&in_desc, &in_desc_sz );
     A113_ASSERT_OR( 0 < in_sock ) {
         A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad accept {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
