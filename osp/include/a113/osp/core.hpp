@@ -144,8 +144,7 @@ struct init_args_t {
 class _INTERNAL {
 public:
     _INTERNAL( void ) {
-    #define _MAKE_LOG_AND_PATERN( c, s ) _Component_loggers[ c ] = spdlog::stdout_color_mt( A113_VERSION_STRING s ); _Component_loggers[ c ]->set_pattern( "[%^%l%$] [%Y-%m-%d %H:%M:%S] [%n] - %v" );
-        _MAKE_LOG_AND_PATERN( LogComponent_General, "" )     
+    #define _MAKE_LOG_AND_PATERN( c, s ) _Component_loggers[ c ] = spdlog::stdout_color_mt( A113_VERSION_STRING s ); _Component_loggers[ c ]->set_pattern( "[%^%l%$] [%Y-%m-%d %H:%M:%S] [%n] - %v" );   
         _MAKE_LOG_AND_PATERN( LogComponent_IO, "--I/O" );
         _MAKE_LOG_AND_PATERN( LogComponent_IMM, "--IMM" );
         _MAKE_LOG_AND_PATERN( LogComponent_SCT, "--SCT" );
@@ -153,6 +152,8 @@ public:
         
         logger = spdlog::stdout_color_mt( A113_VERSION_STRING ); 
         logger->set_pattern( "[%^%l%$] [%Y-%m-%d %H:%M:%S] [%n] - %v" );
+
+        _Component_loggers[ LogComponent_General ] = logger;
     }
 
 _A113_PROTECTED:
