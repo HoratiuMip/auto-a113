@@ -10,8 +10,8 @@ int main( int argc, char* argv[] )  {
     init( argc, argv, { flags: InitFlags_Sockets } );
 
     io::IPv4_TCP_socket server;
-    server.bind_peer( "127.0.0.1", 80 );
-    server.uplink();
+    server.bind( "86.121.161.116", 58008 );
+    server.connect();
 
     for(;;) {
         char msg[] = "Hello there!";
@@ -21,7 +21,7 @@ int main( int argc, char* argv[] )  {
             .src_ptr         = msg,
             .src_n           = sizeof( msg ),
             .byte_count      = nullptr,
-            .fail_if_not_all = false
+            .req_all = false
         } );
 
         std::this_thread::sleep_for( std::chrono::seconds{ 1 } );

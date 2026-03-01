@@ -10,7 +10,7 @@ int main( int argc, char* argv[] )  {
     init( argc, argv, { flags: InitFlags_Sockets } );
 
     io::IPv4_TCP_socket server;
-    server.bind_peer( "0.0.0.0", 80 );
+    server.bind( "0.0.0.0", 80 );
     server.listen();
 
     for(;;) {
@@ -22,7 +22,7 @@ int main( int argc, char* argv[] )  {
             .dst_ptr         = buffer,
             .dst_n           = sizeof( buffer ),
             .byte_count      = &rcv_cnt,
-            .fail_if_not_all = false
+            .req_all = false
         } );
         spdlog::info( "{}", std::string{ buffer, rcv_cnt } );
 

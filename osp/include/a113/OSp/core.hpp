@@ -31,6 +31,7 @@
     #define WINVER 0x0A00
     #include <winsock2.h>
     #include <ws2spi.h>
+    #include <ws2tcpip.h>
     #include <windows.h>
     #include <wincodec.h>
     #include <Ws2bth.h>
@@ -73,13 +74,27 @@ enum LogComponent_ {
 };
 
 /* Auto generate these smh... */
-#define A113_LOGI(...) (a113::_Internal._Component_loggers[ a113::LogComponent_General ]->info( __VA_ARGS__ ))
-#define A113_LOGW(...) (a113::_Internal._Component_loggers[ a113::LogComponent_General ]->warn( __VA_ARGS__ ))
-#define A113_LOGE(...) (a113::_Internal._Component_loggers[ a113::LogComponent_General ]->error( __VA_ARGS__ ))
-#define A113_LOGC(...) (a113::_Internal._Component_loggers[ a113::LogComponent_General ]->critical( __VA_ARGS__ ))
-#define A113_LOGD(...) (a113::_Internal._Component_loggers[ a113::LogComponent_General ]->debug( __VA_ARGS__ ))
-#define A113_LOGE_INT(s, f, ...) A113_LOGE(f _A113_LOG_ERR_INT_FMT_STR __VA_OPT__(,) __VA_ARGS__, _A113_LOG_ERR_INT_ARGS(s))
-#define A113_LOGE_EX(s, f, ...) A113_LOGE(f _A113_LOG_ERR_EX_FMT_STR __VA_OPT__(,) __VA_ARGS__, _A113_LOG_ERR_EX_ARGS(s))
+#define A113_LOGI(...) (a113::_Internal.logger->info( __VA_ARGS__ ))
+#define A113_LOGW(...) (a113::_Internal.logger->warn( __VA_ARGS__ ))
+#define A113_LOGE(...) (a113::_Internal.logger->error( __VA_ARGS__ ))
+#define A113_LOGC(...) (a113::_Internal.logger->critical( __VA_ARGS__ ))
+#define A113_LOGD(...) (a113::_Internal.logger->debug( __VA_ARGS__ ))
+
+#define A113_SYS_ERR_MSG(s) (std::system_category().default_error_condition((s)).message())
+
+#define A113_LOGW_INT(s, f, ...) A113_LOGW(f " [{}]" __VA_OPT__(,) __VA_ARGS__, A113_STATUS_MSG(s))
+#ifdef A113_TARGET_OS_WINDOWS
+#define A113_LOGW_EX(s, f, ...) {const auto _a113_es_ = GetLastError(); A113_LOGW(f " [{}][{} - {}]" __VA_OPT__(,) __VA_ARGS__, A113_STATUS_MSG(s), _a113_es_, A113_SYS_ERR_MSG(_a113_es_) );}
+#elifdef A113_TARGET_OS_LINUX
+#define A113_LOGW_EX(s, f, ...) {const auto _a113_es_ = errno; A113_LOGW(f " [{}][{} - {}]" __VA_OPT__(,) __VA_ARGS__, A113_STATUS_MSG(s), _a113_es_, A113_SYS_ERR_MSG(_a113_es_) );}
+#endif
+#define A113_LOGE_INT(s, f, ...) A113_LOGE(f " [{}]" __VA_OPT__(,) __VA_ARGS__, A113_STATUS_MSG(s))
+#ifdef A113_TARGET_OS_WINDOWS
+#define A113_LOGE_EX(s, f, ...) {const auto _a113_es_ = GetLastError(); A113_LOGE(f " [{}][{} - {}]" __VA_OPT__(,) __VA_ARGS__, A113_STATUS_MSG(s), _a113_es_, A113_SYS_ERR_MSG(_a113_es_) );}
+#elifdef A113_TARGET_OS_LINUX
+#define A113_LOGE_EX(s, f, ...) {const auto _a113_es_ = errno; A113_LOGE(f " [{}][{} - {}]" __VA_OPT__(,) __VA_ARGS__, A113_STATUS_MSG(s), _a113_es_, A113_SYS_ERR_MSG(_a113_es_) );}
+#endif
+
 
 #define A113_LOGI_IO(...) (a113::_Internal._Component_loggers[ a113::LogComponent_IO ]->info( __VA_ARGS__ ))
 #define A113_LOGW_IO(...) (a113::_Internal._Component_loggers[ a113::LogComponent_IO ]->warn( __VA_ARGS__ ))
@@ -108,7 +123,6 @@ enum LogComponent_ {
 #define _A113_LOG_ERR_INT_FMT_STR " [{}]"
 #define _A113_LOG_ERR_INT_ARGS( s ) A113_STATUS_MSG(s)
 
-#define A113_SYS_ERR_MSG( s ) (std::system_category().default_error_condition((s)).message())
 #define _A113_LOG_ERR_EX_FMT_STR " [{}] [{} - #{}]"
 #ifdef A113_TARGET_OS_WINDOWS
     #define _A113_LOG_ERR_EX_ARGS( s ) A113_STATUS_MSG(s), A113_SYS_ERR_MSG(GetLastError()), GetLastError()
@@ -136,6 +150,9 @@ public:
         _MAKE_LOG_AND_PATERN( LogComponent_IMM, "--IMM" );
         _MAKE_LOG_AND_PATERN( LogComponent_SCT, "--SCT" );
     #undef _MAKE_LOG_AND_PATERN
+        
+        logger = spdlog::stdout_color_mt( A113_VERSION_STRING ); 
+        logger->set_pattern( "[%^%l%$] [%Y-%m-%d %H:%M:%S] [%n] - %v" );
     }
 
 _A113_PROTECTED:
@@ -150,6 +167,7 @@ public:
     status_t init( int argc_, char* argv_[], const init_args_t& args_ );
 
 public:
+    std::shared_ptr< spdlog::logger >   logger                                   = { nullptr };
     std::shared_ptr< spdlog::logger >   _Component_loggers[ _LogComponent_COUNT ] = { nullptr };
 
 }; inline _INTERNAL _Internal;
