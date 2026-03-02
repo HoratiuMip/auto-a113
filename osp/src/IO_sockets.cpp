@@ -27,7 +27,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::bind( ipv4_addr_t addr_, ipv4_port_t por
     _conn.addr     = addr_;
     _conn.port     = port_;
 
-    A113_LOGI_IO( "Bound {}:{}.", _CAGP );
+    A113_LOGI( "Bound {}:{}.", _CAGP );
     return A113_OK;
 }
 
@@ -50,15 +50,15 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( void ) {
     desc.sin_addr.s_addr = _conn.addr;
     desc.sin_port        = htons( _conn.port ); 
     
-    A113_LOGD_IO( "Connecting {}:{}...", _CAGP );
+    A113_LOGD( "Connecting {}:{}...", _CAGP );
     A113_ASSERT_OR( 0x0 == ::connect( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) ) ) {
-        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad connect {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
+        A113_LOGE_EX( A113_ERR_SYSCALL, "Bad connect {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
     _sock = sock;
     _conn.alive.store( true, std::memory_order_release );
 
-    A113_LOGI_IO( "Connected {}:{}.", _CAGP );
+    A113_LOGI( "Connected {}:{}.", _CAGP );
     A113_ON_SCOPE_EXIT_DROP;
     return A113_OK;
 }
@@ -97,12 +97,12 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     desc.sin_port        = htons( _conn.port ); 
     
     A113_ASSERT_OR( 0x0 == ::bind( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) ) ) {
-        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad bind {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
+        A113_LOGE_EX( A113_ERR_SYSCALL, "Bad bind {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
-    A113_LOGI_IO( "Listening on {}:{}...", _CAGP ); 
+    A113_LOGI( "Listening on {}:{}...", _CAGP ); 
     A113_ASSERT_OR( 0x0 == ::listen( sock, 1 ) ) {
-        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad listen {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
+        A113_LOGE_EX( A113_ERR_SYSCALL, "Bad listen {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
     
     sockaddr_in in_desc    = {}; 
@@ -112,7 +112,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
 
     ::SOCKET in_sock = ::accept( sock, ( sockaddr* )&in_desc, &in_desc_sz );
     A113_ASSERT_OR( INVALID_SOCKET != in_sock ) {
-        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad accept {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
+        A113_LOGE_EX( A113_ERR_SYSCALL, "Bad accept {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
     _sock          = in_sock;
@@ -121,7 +121,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     _conn.port     = in_desc.sin_port;
     _conn.alive.store( true, std::memory_order_release );
 
-    A113_LOGI_IO( "Accepted {}:{}.", _CAGP );
+    A113_LOGI( "Accepted {}:{}.", _CAGP );
     return A113_OK;
 }
 
@@ -169,7 +169,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::bind( ipv4_addr_t addr_, ipv4_port_t por
     _conn.addr     = addr_;
     _conn.port     = port_;
 
-    A113_LOGI_IO( "Bound {}:{}.", _CAGP );
+    A113_LOGI( "Bound {}:{}.", _CAGP );
     return A113_OK;
 }
 
@@ -192,15 +192,15 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( void ) {
     desc.sin_addr.s_addr = _conn.addr;
     desc.sin_port        = htons( _conn.port ); 
     
-    A113_LOGD_IO( "Connecting {}:{}...", _CAGP );
+    A113_LOGD( "Connecting {}:{}...", _CAGP );
     A113_ASSERT_OR( 0x0 == ::connect( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) ) ) {
-        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad connect {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
+        A113_LOGE_EX( A113_ERR_SYSCALL, "Bad connect {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
     _sock = sock;
     _conn.alive.store( true, std::memory_order_release );
 
-    A113_LOGI_IO( "Connected {}:{}.", _CAGP );
+    A113_LOGI( "Connected {}:{}.", _CAGP );
     A113_ON_SCOPE_EXIT_DROP;
     return A113_OK;
 }
@@ -239,12 +239,12 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     desc.sin_port        = htons( _conn.port ); 
     
     A113_ASSERT_OR( 0x0 == ::bind( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) ) ) {
-        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad bind {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
+        A113_LOGE_EX( A113_ERR_SYSCALL, "Bad bind {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
-    A113_LOGI_IO( "Listening on {}:{}...", _CAGP ); 
+    A113_LOGI( "Listening on {}:{}...", _CAGP ); 
     A113_ASSERT_OR( 0x0 == ::listen( sock, 1 ) ) {
-        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad listen {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
+        A113_LOGE_EX( A113_ERR_SYSCALL, "Bad listen {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
     
     sockaddr_in  in_desc    = {}; 
@@ -254,7 +254,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
 
     int in_sock = ::accept( sock, ( sockaddr* )&in_desc, &in_desc_sz );
     A113_ASSERT_OR( 0 < in_sock ) {
-        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Bad accept {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
+        A113_LOGE_EX( A113_ERR_SYSCALL, "Bad accept {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
     _sock          = in_sock;
@@ -263,7 +263,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     _conn.port     = in_desc.sin_port;
     _conn.alive.store( true, std::memory_order_release );
 
-    A113_LOGI_IO( "Accepted {}:{}.", _CAGP );
+    A113_LOGI( "Accepted {}:{}.", _CAGP );
     return A113_OK;
 }
 

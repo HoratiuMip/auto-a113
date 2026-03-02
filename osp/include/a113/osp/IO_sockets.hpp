@@ -31,7 +31,6 @@ public:
     struct timeouts_t {
         int   outbound_ms;
         int   inbound_ms;
-        int   tcp_ms;
     };
 
 _A113_PROTECTED:

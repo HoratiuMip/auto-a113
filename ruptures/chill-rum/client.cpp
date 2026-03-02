@@ -10,7 +10,11 @@ int main( int argc, char* argv[] )  {
     init( argc, argv, { flags: InitFlags_Sockets } );
 
     io::IPv4_TCP_socket server;
-    server.bind( "", 58008 );
+    server.bind( "127.0.0.1", 58008 );
+    server.timeouts( {
+        .outbound_ms = 10000,
+        .inbound_ms  = 10000
+    } );
     server.connect();
 
     for(;;) {
