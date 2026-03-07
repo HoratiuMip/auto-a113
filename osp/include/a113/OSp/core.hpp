@@ -20,6 +20,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <ranges>
 #include <set>
 #include <shared_mutex>
 #include <string>

@@ -1,6 +1,5 @@
-#include "common.hpp"
-
 #include <a113/osp/IO_sockets.hpp>
+#include "common.hpp"
 using namespace std;
 using namespace a113;
 
@@ -29,15 +28,7 @@ struct Server {
     mutex                   _room_mtx    = {};
 
 // ======================= Utility =======================
-    static constexpr uint32_t hash( const string& str_ ) {
-        uint32_t h = 2166136261U;
-        for( char c : str_ ) {
-            h ^= (uint32_t)c;
-            h *= 16777619U;
-        }
-        return h;
-    }
-
+  
 // ======================= Mains =======================
     void _unsubscribed_main( void ) {
         for(; _running.load( memory_order_relaxed );) {
@@ -64,7 +55,7 @@ struct Server {
                     .req_all    = false,
                     .req_time   = true
                 } ) && bc != 0x0 ) {
-
+                    spdlog::warn( "{}", string{ buf, bc } );
                 } else goto l_unsub_op_fail;
 
                 goto l_itr_inc; 
@@ -110,10 +101,16 @@ struct Server {
     }
 
     string cli( const string& cmd_ ) {
-        string ret = "";
+    #define NEXT (*tok++)
+        string ret   = "";
+        time_t t_now = time( nullptr );
 
-        switch( hash( cmd_ ) ) {
-            case hash( "--T-unsubs" ): {
+        vector< string > toks;
+        for( auto t : views::split( cmd_, ' ' ) ) toks.emplace_back( t.begin(), t.end() );
+        auto tok = toks.begin();
+
+        switch( hash_unsecure( NEXT ) ) {
+            case hash_unsecure( "--T-unsubs" ): {
                 ret += "Unsubscribed clients list:\n";
                 lock_guard lck{ _unsubscribed_mtx };
 
@@ -122,7 +119,11 @@ struct Server {
                 } else {
                     int crt = 1;
                     for( unsubscribed_t& unsub : _unsubscribed_list ) {
-                        ret += format( "{} {}:{}\n", crt, unsub.client.addr_c_str(), unsub.client.port() );
+                        ret += format( "{} {}:{} {}s\n", 
+                            crt, 
+                            unsub.client.addr_c_str(), unsub.client.port(), 
+                            DEFAULT_SERVER_UNSUBS_HOLD_TIME_S - ( t_now - unsub.born )
+                        );
                         ++crt;
                     }
                 }

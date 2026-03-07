@@ -79,6 +79,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::disconnect( void ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad socket close {}:{}.", _CAGP );
     }
 
+    A113_LOGI( "Disconnected {}:{}.", _CAGP );
     _conn.addr = 0x0;
     _conn.addr_str.make_null(); 
     _conn.port = 0x0;
@@ -252,6 +253,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::disconnect( void ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad socket close {}:{}.", _CAGP );
     }
 
+    A113_LOGI( "Disconnected {}:{}.", _CAGP );
     _conn.addr = 0x0;
     _conn.addr_str.make_null(); 
     _conn.port = 0x0;
