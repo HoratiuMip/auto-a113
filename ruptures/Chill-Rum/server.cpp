@@ -118,6 +118,7 @@ struct Server {
                     int crt = 1;
                     for( unsubscribed_t& unsub : _unsubscribed_list ) {
                         ret += format( "{} {}:{}\n", crt, unsub.client.addr_c_str(), unsub.client.port() );
+                        ++crt;
                     }
                 }
             break; }
