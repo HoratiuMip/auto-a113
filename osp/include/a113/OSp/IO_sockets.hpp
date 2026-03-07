@@ -75,7 +75,8 @@ public:
     virtual status_t connect( const config_t& config_ );
     virtual status_t disconnect( void );
 
-    virtual status_t listen( const config_t& config_ );
+    virtual status_t listen( void );
+    virtual status_t accept( IPv4_TCP_socket* sock_, const config_t& config_  );
 
 public:
     virtual status_t read( const port_R_desc_t& desc_ ) override;

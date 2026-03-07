@@ -86,7 +86,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::disconnect( void ) {
     return A113_OK;
 }
 
-A113_IMPL_FNC status_t IPv4_TCP_socket::listen( const config_t& config_ ) {
+A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     A113_ASSERT_OR( 0x0 == _conn.addr ) {
         A113_LOGE_INT( A113_ERR_LOGIC, "Listening must be on 0:0:0:0 ({}:{}).", _CAGP ); return A113_ERR_LOGIC;
     }
@@ -109,33 +109,38 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( const config_t& config_ ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad bind {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
-    A113_LOGI( "Listening on {}:{}...", _CAGP ); 
     A113_ASSERT_OR( 0x0 == ::listen( sock, 1 ) ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad listen {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
-    
+
+    _sock = sock; A113_ON_SCOPE_EXIT_DROP;
+
+    A113_LOGI( "Listening on {}:{}...", _CAGP ); 
+    return A113_OK;
+}
+
+A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const config_t& config_ ) {
     sockaddr_in in_desc    = {}; 
     int         in_desc_sz = sizeof( sockaddr_in );
 
     ZeroMemory( &in_desc, sizeof( sockaddr_in ) );
 
-    ::SOCKET in_sock = ::accept( sock, ( sockaddr* )&in_desc, &in_desc_sz );
+    ::SOCKET in_sock = ::accept( _sock, ( sockaddr* )&in_desc, &in_desc_sz );
     A113_ASSERT_OR( INVALID_SOCKET != in_sock ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad accept {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
-    _sock = in_sock;
+    sock_->_sock = in_sock;
 
     if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
-        this->timeouts( config_.timeouts );
+        sock_->timeouts( config_.timeouts );
 
-    _conn.addr     = in_desc.sin_addr.s_addr;
-    _conn.addr_str = ipv4_addr_str_t::from( _conn.addr );
-    _conn.port     = in_desc.sin_port;
-    _conn.alive.store( true, std::memory_order_release );
+    sock_->_conn.addr     = in_desc.sin_addr.s_addr;
+    sock_->_conn.addr_str = ipv4_addr_str_t::from( _conn.addr );
+    sock_->_conn.port     = in_desc.sin_port;
+    sock_->_conn.alive.store( true, std::memory_order_release );
 
     A113_LOGI( "Accepted {}:{}.", _CAGP );
-    return A113_OK;
 }
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::read( const port_R_desc_t& desc_ ) {
@@ -251,7 +256,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::disconnect( void ) {
     return A113_OK;
 }
 
-A113_IMPL_FNC status_t IPv4_TCP_socket::listen( const config_t& config_ ) {
+A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     A113_ASSERT_OR( 0x0 == _conn.addr ) {
         A113_LOGE_INT( A113_ERR_LOGIC, "Listening must be on 0:0:0:0 ({}:{}).", _CAGP ); return A113_ERR_LOGIC;
     }
@@ -274,33 +279,38 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( const config_t& config_ ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad bind {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
-    A113_LOGI( "Listening on {}:{}...", _CAGP ); 
     A113_ASSERT_OR( 0x0 == ::listen( sock, 1 ) ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad listen {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
     
+    _sock = sock; A113_ON_SCOPE_EXIT_DROP;
+
+    A113_LOGI( "Listening on {}:{}.", _CAGP ); 
+    return A113_OK;
+}
+
+A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const config_t& config_ ) {
     sockaddr_in  in_desc    = {}; 
     unsigned int in_desc_sz = sizeof( sockaddr_in );
 
     memset( &in_desc, 0, sizeof( sockaddr_in ) );
 
-    int in_sock = ::accept( sock, ( sockaddr* )&in_desc, &in_desc_sz );
-    A113_ASSERT_OR( 0 < in_sock ) {
+    int in_sock = ::accept( _sock, ( sockaddr* )&in_desc, &in_desc_sz );
+    A113_ASSERT_OR( 0x0 < in_sock ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad accept {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
-    _sock = in_sock;
+    sock_->_sock = in_sock;
 
     if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
-        this->timeouts( config_.timeouts );
+        sock_->timeouts( config_.timeouts );
 
-    _conn.addr     = in_desc.sin_addr.s_addr;
-    _conn.addr_str = ipv4_addr_str_t::from( _conn.addr );
-    _conn.port     = in_desc.sin_port;
-    _conn.alive.store( true, std::memory_order_release );
+    sock_->_conn.addr     = in_desc.sin_addr.s_addr;
+    sock_->_conn.addr_str = ipv4_addr_str_t::from( _conn.addr );
+    sock_->_conn.port     = in_desc.sin_port;
+    sock_->_conn.alive.store( true, std::memory_order_release );
 
     A113_LOGI( "Accepted {}:{}.", _CAGP );
-    return A113_OK;
 }
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::read( const port_R_desc_t& desc_ ) {

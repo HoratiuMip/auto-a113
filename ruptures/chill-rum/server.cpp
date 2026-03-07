@@ -84,9 +84,12 @@ struct Server {
         
         _unsubscribed_th = thread( &Server::_unsubscribed_main, this );
 
+        io::IPv4_TCP_socket server; server.bind( "0.0.0.0", DEFAULT_PORT ); 
+        server.listen();
+
         for(; _running.load( memory_order_relaxed );) {
-            io::IPv4_TCP_socket client; client.bind( "0.0.0.0", DEFAULT_PORT );
-            if( A113_OK == client.listen( {
+            io::IPv4_TCP_socket client;
+            if( A113_OK == server.accept( &client, {
                 .timeouts = { .outbound_ms = DEFAULT_SERVER_OUTBOUND_TIMEOUT_MS, .inbound_ms = DEFAULT_SERVER_INBOUND_TIMEOUT_MS }
             } ) ) {
                 lock_guard lck{ _unsubscribed_mtx };
