@@ -53,7 +53,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( const config_t& config_ ) {
     desc.sin_addr.s_addr = _conn.addr;
     desc.sin_port        = htons( _conn.port ); 
     
-    A113_LOGD( "Connecting {}:{}...", _CAGP );
+    A113_LOGI( "Connecting {}:{}...", _CAGP );
     A113_ASSERT_OR( 0x0 == ::connect( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) ) ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad connect {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
@@ -224,7 +224,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( const config_t& config_ ) {
     desc.sin_addr.s_addr = _conn.addr;
     desc.sin_port        = htons( _conn.port ); 
     
-    A113_LOGD( "Connecting {}:{}...", _CAGP );
+    A113_LOGI( "Connecting {}:{}...", _CAGP );
     A113_ASSERT_OR( 0x0 == ::connect( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) ) ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad connect {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }

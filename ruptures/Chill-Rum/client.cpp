@@ -10,12 +10,8 @@ int main( int argc, char* argv[] )  {
     init( argc, argv, { flags: InitFlags_Sockets } );
 
     io::IPv4_TCP_socket server;
-    server.bind( argv[ 2 ], 58008 );
+    server.bind( argv[ 1 ], 58008 );
     server.connect( {} );
-    server.timeouts( {
-        .outbound_s = 10,
-        .inbound_s  = 10
-    } );
 
     for(;;) {
         std::this_thread::sleep_for( std::chrono::seconds{ 1 } );
