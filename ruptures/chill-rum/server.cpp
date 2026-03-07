@@ -11,6 +11,7 @@ struct Server {
     struct unsubscribed_t {
         io::IPv4_TCP_socket   client       = {};
         int                   failed_ops   = 0;
+        time_t                born         = 0;
     };
     list< unsubscribed_t >   _unsubscribed_list   = {};
     mutex                    _unsubscribed_mtx    = {};
@@ -42,12 +43,15 @@ struct Server {
         for(; _running.load( memory_order_relaxed );) {
             lock_guard lck{ _unsubscribed_mtx };
 
+            time_t t_now = time( nullptr );
             for( auto u_itr = _unsubscribed_list.begin(); u_itr != _unsubscribed_list.end(); ) {
                 unsubscribed_t& unsub = *u_itr;
 
                 char buf[ MAX_PACKET_SIZE ] = { '\0' };
                 int  bc                     = 0x0;
                 int  rx_available           = -0x1;
+
+                if( t_now - unsub.born >= DEFAULT_SERVER_UNSUBS_HOLD_TIME_S ) goto l_kill_unsub;
 
                 if( A113_OK == unsub.client.holding_rx( &rx_available ) ) {
                     if( rx_available <= 0 ) goto l_itr_inc;
@@ -94,7 +98,8 @@ struct Server {
             } ) ) {
                 lock_guard lck{ _unsubscribed_mtx };
                 _unsubscribed_list.emplace_back( unsubscribed_t{
-                    .client = move( client )
+                    .client = move( client ),
+                    .born   = time( nullptr )
                 } );
             } else {
 

@@ -148,6 +148,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::read( const port_R_desc_t& desc_ ) {
     auto byte_count = ::recv( _sock, desc_.dst_ptr, desc_.dst_n, desc_.req_all ? MSG_WAITALL : 0x0 );
     if( desc_.byte_count ) *desc_.byte_count = byte_count;
     if( desc_.req_all && byte_count != desc_.dst_n ) return A113_ERR_FLOW;
+    if( desc_.reset && 0x0 == byte_count ) *desc_.reset = true; 
     return A113_OK;
 }
 
@@ -155,6 +156,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::write( const port_W_desc_t& desc_ ) {
     auto byte_count = ::send( _sock, desc_.src_ptr, desc_.src_n, 0 );
     if( desc_.byte_count ) *desc_.byte_count = byte_count;
     if( desc_.req_all && byte_count != desc_.src_n ) return A113_ERR_FLOW;
+    if( desc_.reset && 0x0 == byte_count ) *desc_.reset = true; 
     return A113_OK;
 }
 
@@ -319,6 +321,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::read( const port_R_desc_t& desc_ ) {
     auto byte_count = ::recv( _sock, desc_.dst_ptr, desc_.dst_n, desc_.req_all ? MSG_WAITALL : 0x0 );
     if( desc_.byte_count ) *desc_.byte_count = byte_count;
     if( desc_.req_all && byte_count != desc_.dst_n ) return A113_ERR_FLOW;
+    if( desc_.reset && 0x0 == byte_count ) *desc_.reset = true; 
     return A113_OK;
 }
 
@@ -326,6 +329,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::write( const port_W_desc_t& desc_ ) {
     auto byte_count = ::send( _sock, desc_.src_ptr, desc_.src_n, 0 );
     if( desc_.byte_count ) *desc_.byte_count = byte_count;
     if( desc_.req_all && byte_count != desc_.src_n ) return A113_ERR_FLOW;
+    if( desc_.reset && 0x0 == byte_count ) *desc_.reset = true; 
     return A113_OK;
 }
 
