@@ -49,7 +49,7 @@ public:
     } config;
 
 public:
-    HVec< imm::Cluster >   cluster       = nullptr;
+    HVec< imm::Cluster >   _cluster       = nullptr;
     // Lens3              lens            = { glm::vec3( 0.0, 0.0, 3.0 ), glm::vec3( 0.0, 0.0, 0.0 ), glm::vec3( 0.0, 1.0, 0.0 ) };
 
 _A113_PROTECTED:
@@ -68,13 +68,17 @@ public:
     // }
 
 public:
-    auto native_window_handle( void ) {
-        return cluster->handle();
+    A113_inline imm::Cluster& cluster( void ) {
+        return *_cluster;
+    }
+
+    A113_inline auto native_window_handle( void ) {
+        return _cluster->handle();
     }
 
 public:
     status_t set_icon( GLFWimage& img_ ) {
-        glfwSetWindowIcon( cluster->handle(), 1, &img_ );
+        glfwSetWindowIcon( _cluster->handle(), 1, &img_ );
         return A113_OK;
     }
 
@@ -106,7 +110,7 @@ public:
 
         glfwMakeContextCurrent( window );
         
-        if( not cluster ) cluster = HVec< imm::Cluster >::make( imm::Cluster::init_args_t{
+        if( not _cluster ) _cluster = HVec< imm::Cluster >::make( imm::Cluster::init_args_t{
             .glfwnd = window
         } );
 
@@ -183,7 +187,7 @@ public:
             ImGui::UpdatePlatformWindows();
             ImGui::RenderPlatformWindowsDefault();
             glfwMakeContextCurrent( window );
-            cluster->swap();
+            _cluster->swap();
         }
 
     l_end:

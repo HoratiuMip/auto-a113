@@ -13,6 +13,7 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #include <a113/osp/hyper_net.hpp>
 #include <a113/osp/osp.hpp>
 #include <a113/osp/render3.hpp>
+#include <a113/osp/rixrat_core.hpp>
 #include <a113/osp/sys_interface.hpp>
 #include <a113/osp/tempo.hpp>
 

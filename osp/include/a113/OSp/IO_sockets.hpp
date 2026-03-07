@@ -29,9 +29,31 @@ _A113_PROTECTED:
 
 public:
     struct timeouts_t {
-        int   outbound_ms;
-        int   inbound_ms;
+        int   outbound_ms   = 0;
+        int   inbound_ms    = 0;
     };
+
+    struct config_t {
+        timeouts_t   timeouts;
+    };
+
+public:
+    IPv4_TCP_socket( void ) = default;
+
+    IPv4_TCP_socket( const IPv4_TCP_socket& ) = delete;
+
+    IPv4_TCP_socket( IPv4_TCP_socket&& other_ )
+    : _sock{ std::exchange( other_._sock, -0x1 ) }, 
+      _conn{
+        .alive    = { other_._conn.alive.exchange( false, std::memory_order_seq_cst ) },
+        .addr_str = std::move( other_._conn.addr_str ),
+        .addr     = std::move( other_._conn.addr ),
+        .port     = std::move( other_._conn.port )
+    } {}
+
+    ~IPv4_TCP_socket( void ) {
+        this->disconnect();
+    }
 
 _A113_PROTECTED:
     struct _conn_t {
@@ -50,10 +72,10 @@ public:
     status_t bind( const char* addr_str_, ipv4_port_t port_ );
 
 public:
-    status_t connect( void );
-    status_t disconnect( void );
+    virtual status_t connect( const config_t& config_ );
+    virtual status_t disconnect( void );
 
-    status_t listen( void );
+    virtual status_t listen( const config_t& config_ );
 
 public:
     virtual status_t read( const port_R_desc_t& desc_ ) override;
@@ -61,6 +83,9 @@ public:
 
 public:
     status_t timeouts( const timeouts_t& tos_ );
+
+public:
+    status_t holding_rx( int* bc_ );
 
 };
 

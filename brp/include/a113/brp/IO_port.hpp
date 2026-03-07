@@ -18,16 +18,18 @@ typedef   struct bt_addr_t { uint8_t b[6]; }   bt_addr_t;
 typedef   uint8_t    i2c_addr_t;
 
 struct port_R_desc_t {
-    char*     dst_ptr      = nullptr;
-    size_t    dst_n        = 0;
-    size_t*   byte_count   = nullptr;
-    bool      req_all      = false;
+    char*   dst_ptr      = nullptr;
+    int     dst_n        = 0;
+    int*    byte_count   = nullptr;
+    bool    req_all      = false;
+    bool    req_time     = false;
 };
 struct port_W_desc_t {
-    char*     src_ptr      = nullptr;
-    size_t    src_n        = 0;
-    size_t*   byte_count   = nullptr;
-    bool      req_all      = false;
+    char*   src_ptr      = nullptr;
+    int     src_n        = 0;
+    int*    byte_count   = nullptr;
+    bool    req_all      = true;
+    bool    req_time     = true;
 };
 
 class Port {

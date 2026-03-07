@@ -93,7 +93,7 @@ inline static const char* const status_msgs[] = {
 #define A113_UNIMPLEMENTED {return A113_ERR_NOT_IMPL;}
 
 struct MDsc {
-    typedef   size_t   n_t;
+    typedef   int   n_t;
 
     char*   ptr   = nullptr;
     n_t     n     = 0;    

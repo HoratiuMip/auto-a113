@@ -42,6 +42,7 @@
     #include <initguid.h>
 #elifdef A113_TARGET_OS_LINUX
     #include <sys/types.h>
+    #include <sys/ioctl.h>
     
     #include <unistd.h>  
     

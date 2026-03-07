@@ -350,8 +350,10 @@ _A113_PROTECTED:
     struct _tex_cache_t : public _internal_struct_t {
         cache::Bucket< std::string, tex_t >   _bucket   = {};
 
-        HVec< tex_t > make_tex( std::string strid_, cache::BucketHandle_ bkt_hdl_, const tex_params_t& params_, const void* pixels_, int x_, int y_, const char* from_ ) {
+        HVec< tex_t > make_tex( std::string strid_, cache::BucketHandle_ bkt_hdl_, const tex_params_t& params_, const void* pixels_, int x_, int y_, const char* from_ = nullptr ) {
             HVec< tex_t > tex = _bucket.query( strid_, bkt_hdl_ );
+
+            if( !from_ ) from_ = "master";
 
             if( not tex ) {
                 GLuint tex_glidx;
@@ -359,7 +361,7 @@ _A113_PROTECTED:
                 glGenTextures( 1, &tex_glidx );
                 glBindTexture( GL_TEXTURE_2D, tex_glidx );
                 glTexImage2D( GL_TEXTURE_2D, 0, GL_SRGB, x_, y_, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels_ );
-                glGenerateMipmap( GL_TEXTURE_2D );
+                if( pixels_ ) glGenerateMipmap( GL_TEXTURE_2D );
 
                 glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
                 glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
@@ -369,6 +371,7 @@ _A113_PROTECTED:
                 glBindTexture( GL_TEXTURE_2D, GL_NONE );
 
                 tex = _bucket.commit( strid_, tex_t{ strid_, tex_glidx }, bkt_hdl_ );
+                
                 A113_LOGI_IMM( "Created TEX[{}] from {}.", tex->strid, from_ );
             } else {
                 A113_LOGI_IMM( "Pulled TEX[{}] from cache, requested from {}.", tex->strid, from_ );

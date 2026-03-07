@@ -11,6 +11,9 @@ namespace a113::io {
 
 #define _CAGP _conn.addr_str.str(), _conn.port
 
+/* ===========================================
+    Implementation for Windows.
+*/
 #ifdef A113_TARGET_OS_WINDOWS
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::bind( ipv4_addr_t addr_, ipv4_port_t port_ ) {
@@ -35,7 +38,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::bind( const char* addr_str_, ipv4_port_t
     return this->bind( ipv4_addr_str_t::from( addr_str_ ), port_ );
 }
 
-A113_IMPL_FNC status_t IPv4_TCP_socket::connect( void ) {
+A113_IMPL_FNC status_t IPv4_TCP_socket::connect( const config_t& config_ ) {
     ::SOCKET sock = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP );
     A113_ASSERT_OR( INVALID_SOCKET != sock ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad socket for {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
@@ -56,6 +59,10 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( void ) {
     }
 
     _sock = sock;
+
+    if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
+        this->timeouts( config_.timeouts );
+
     _conn.alive.store( true, std::memory_order_release );
 
     A113_LOGI( "Connected {}:{}.", _CAGP );
@@ -65,6 +72,8 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( void ) {
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::disconnect( void ) {
     _conn.alive.store( false, std::memory_order_seq_cst );
+    
+    if( INVALID_SOCKET == _sock ) return A113_OK;
     
     A113_ASSERT_OR( 0x0 == ::closesocket( std::exchange( _sock, INVALID_SOCKET ) ) ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad socket close {}:{}.", _CAGP );
@@ -77,7 +86,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::disconnect( void ) {
     return A113_OK;
 }
 
-A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
+A113_IMPL_FNC status_t IPv4_TCP_socket::listen( const config_t& config_ ) {
     A113_ASSERT_OR( 0x0 == _conn.addr ) {
         A113_LOGE_INT( A113_ERR_LOGIC, "Listening must be on 0:0:0:0 ({}:{}).", _CAGP ); return A113_ERR_LOGIC;
     }
@@ -115,7 +124,11 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad accept {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
-    _sock          = in_sock;
+    _sock = in_sock;
+
+    if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
+        this->timeouts( config_.timeouts );
+
     _conn.addr     = in_desc.sin_addr.s_addr;
     _conn.addr_str = ipv4_addr_str_t::from( _conn.addr );
     _conn.port     = in_desc.sin_port;
@@ -153,6 +166,19 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::timeouts( const timeouts_t& tos_ ) {
     return A113_OK;
 }
 
+A113_IMPL_FNC status_t IPv4_TCP_socket::holding_rx( int* bc_ ) {
+    *bc_ = -0x1;
+
+    ULONG bc = 0;
+    A113_ASSERT_OR( 0x0 == ioctlsocket( _sock, FIONREAD, &bc ) ) return A113_ERR_SYSCALL;
+
+    *bc_ = (int)bc;
+    return A113_OK;
+}
+
+/* ===========================================
+    Implementation for Linux.
+*/
 #elifdef A113_TARGET_OS_LINUX
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::bind( ipv4_addr_t addr_, ipv4_port_t port_ ) {
@@ -177,7 +203,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::bind( const char* addr_str_, ipv4_port_t
     return this->bind( ipv4_addr_str_t::from( addr_str_ ), port_ );
 }
 
-A113_IMPL_FNC status_t IPv4_TCP_socket::connect( void ) {
+A113_IMPL_FNC status_t IPv4_TCP_socket::connect( const config_t& config_ ) {
     int sock = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP );
     A113_ASSERT_OR( 0x0 < sock ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad socket for {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
@@ -198,6 +224,10 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( void ) {
     }
 
     _sock = sock;
+
+    if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
+        this->timeouts( config_.timeouts );
+
     _conn.alive.store( true, std::memory_order_release );
 
     A113_LOGI( "Connected {}:{}.", _CAGP );
@@ -207,6 +237,8 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( void ) {
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::disconnect( void ) {
     _conn.alive.store( false, std::memory_order_seq_cst );
+
+    if( INVALID_SOCKET == _sock ) return A113_OK;
     
     A113_ASSERT_OR( 0x0 == ::close( std::exchange( _sock, -0x1 ) ) ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad socket close {}:{}.", _CAGP );
@@ -219,7 +251,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::disconnect( void ) {
     return A113_OK;
 }
 
-A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
+A113_IMPL_FNC status_t IPv4_TCP_socket::listen( const config_t& config_ ) {
     A113_ASSERT_OR( 0x0 == _conn.addr ) {
         A113_LOGE_INT( A113_ERR_LOGIC, "Listening must be on 0:0:0:0 ({}:{}).", _CAGP ); return A113_ERR_LOGIC;
     }
@@ -257,7 +289,11 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad accept {}:{}.", _CAGP ); return A113_ERR_SYSCALL;
     }
 
-    _sock          = in_sock;
+    _sock = in_sock;
+
+    if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
+        this->timeouts( config_.timeouts );
+
     _conn.addr     = in_desc.sin_addr.s_addr;
     _conn.addr_str = ipv4_addr_str_t::from( _conn.addr );
     _conn.port     = in_desc.sin_port;
@@ -301,6 +337,15 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::timeouts( const timeouts_t& tos_ ) {
     return A113_OK;
 }
 
+A113_IMPL_FNC status_t IPv4_TCP_socket::holding_rx( int* bc_ ) {
+    *bc_ = -0x1;
+
+    A113_ASSERT_OR( 0x0 == ioctl( _sock, FIONREAD, bc_ ) ) return A113_ERR_SYSCALL;
+    return A113_OK;
+}
+
+#else
+    #error "[A113]: Building sockets with no or unsupported target operating system."
 #endif
 
 }
