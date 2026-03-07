@@ -13,8 +13,8 @@ int main( int argc, char* argv[] )  {
     server.bind( argv[ 2 ], 58008 );
     server.connect( {} );
     server.timeouts( {
-        .outbound_ms = 10000,
-        .inbound_ms  = 10000
+        .outbound_s = 10,
+        .inbound_s  = 10
     } );
 
     for(;;) {

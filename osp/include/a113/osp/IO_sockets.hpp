@@ -29,8 +29,8 @@ _A113_PROTECTED:
 
 public:
     struct timeouts_t {
-        int   outbound_ms   = 0;
-        int   inbound_ms    = 0;
+        int   outbound_s   = 0;
+        int   inbound_s    = 0;
     };
 
     struct config_t {

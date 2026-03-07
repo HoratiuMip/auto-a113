@@ -60,7 +60,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( const config_t& config_ ) {
 
     _sock = sock;
 
-    if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
+    if( 0 != config_.timeouts.outbound_s && 0 != config_.timeouts.inbound_s )
         this->timeouts( config_.timeouts );
 
     _conn.alive.store( true, std::memory_order_release );
@@ -132,7 +132,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
 
     sock_->_sock = in_sock;
 
-    if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
+    if( 0 != config_.timeouts.outbound_s && 0 != config_.timeouts.inbound_s )
         sock_->timeouts( config_.timeouts );
 
     sock_->_conn.addr     = in_desc.sin_addr.s_addr;
@@ -140,7 +140,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
     sock_->_conn.port     = in_desc.sin_port;
     sock_->_conn.alive.store( true, std::memory_order_release );
 
-    A113_LOGI( "Accepted {}:{}.", _CAGP );
+    A113_LOGI( "Accepted {}:{}.", sock_->addr_c_str(), sock_->port() );
     return A113_OK;
 }
 
@@ -159,12 +159,12 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::write( const port_W_desc_t& desc_ ) {
 }
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::timeouts( const timeouts_t& tos_ ) {
-    const DWORD rcvtimeo = ( DWORD )tos_.inbound_ms;
+    const DWORD rcvtimeo = ( DWORD )tos_.inbound_s * 1000;
     A113_ASSERT_OR( 0x0 == setsockopt( _sock, SOL_SOCKET, SO_RCVTIMEO, ( const char* )&rcvtimeo, sizeof( rcvtimeo ) ) ) {
         A113_LOGW_EX( A113_ERR_SYSCALL, "Bad set inbound timeout." );
     }
 
-    const DWORD sndtimeo = ( DWORD )tos_.outbound_ms;
+    const DWORD sndtimeo = ( DWORD )tos_.outbound_s * 1000;
     A113_ASSERT_OR( 0x0 == setsockopt( _sock, SOL_SOCKET, SO_RCVTIMEO, ( const char* )&sndtimeo, sizeof( sndtimeo ) ) ) {
         A113_LOGW_EX( A113_ERR_SYSCALL, "Bad set outbound timeout." );
     }
@@ -231,7 +231,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( const config_t& config_ ) {
 
     _sock = sock;
 
-    if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
+    if( 0 != config_.timeouts.outbound_s && 0 != config_.timeouts.inbound_s )
         this->timeouts( config_.timeouts );
 
     _conn.alive.store( true, std::memory_order_release );
@@ -303,7 +303,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
 
     sock_->_sock = in_sock;
 
-    if( 0 != config_.timeouts.outbound_ms && 0 != config_.timeouts.inbound_ms )
+    if( 0 != config_.timeouts.outbound_s && 0 != config_.timeouts.inbound_s )
         sock_->timeouts( config_.timeouts );
 
     sock_->_conn.addr     = in_desc.sin_addr.s_addr;
@@ -311,7 +311,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
     sock_->_conn.port     = in_desc.sin_port;
     sock_->_conn.alive.store( true, std::memory_order_release );
 
-    A113_LOGI( "Accepted {}:{}.", _CAGP );
+    A113_LOGI( "Accepted {}:{}.", sock_->addr_c_str(), sock_->port() );
     return A113_OK;
 }
 
@@ -331,16 +331,16 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::write( const port_W_desc_t& desc_ ) {
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::timeouts( const timeouts_t& tos_ ) {
     const timeval rcvtimeo = {
-        .tv_sec  = 0,
-        .tv_usec = tos_.inbound_ms * 1000
+        .tv_sec  = tos_.inbound_s,
+        .tv_usec = 0
     };
     A113_ASSERT_OR( 0x0 == setsockopt( _sock, SOL_SOCKET, SO_RCVTIMEO, &rcvtimeo, sizeof( rcvtimeo ) ) ) {
         A113_LOGW_EX( A113_ERR_SYSCALL, "Bad set inbound timeout." );
     }
 
     const timeval sndtimeo = {
-        .tv_sec  = 0,
-        .tv_usec = tos_.outbound_ms * 1000
+        .tv_sec  = tos_.outbound_s,
+        .tv_usec = 0
     };
     A113_ASSERT_OR( 0x0 == setsockopt( _sock, SOL_SOCKET, SO_RCVTIMEO, &sndtimeo, sizeof( sndtimeo ) ) ) {
         A113_LOGW_EX( A113_ERR_SYSCALL, "Bad set outbound timeout." );

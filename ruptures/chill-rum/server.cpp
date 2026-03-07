@@ -90,7 +90,7 @@ struct Server {
         for(; _running.load( memory_order_relaxed );) {
             io::IPv4_TCP_socket client;
             if( A113_OK == server.accept( &client, {
-                .timeouts = { .outbound_ms = DEFAULT_SERVER_OUTBOUND_TIMEOUT_MS, .inbound_ms = DEFAULT_SERVER_INBOUND_TIMEOUT_MS }
+                .timeouts = { .outbound_s = DEFAULT_SERVER_OUTBOUND_TIMEOUT_S, .inbound_s = DEFAULT_SERVER_INBOUND_TIMEOUT_S }
             } ) ) {
                 lock_guard lck{ _unsubscribed_mtx };
                 _unsubscribed_list.emplace_back( unsubscribed_t{
