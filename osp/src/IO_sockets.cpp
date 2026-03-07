@@ -294,7 +294,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
     sockaddr_in  in_desc    = {}; 
     unsigned int in_desc_sz = sizeof( sockaddr_in );
 
-    memset( &in_desc, 0, sizeof( sockaddr_in ) );
+    memset( &in_desc, 0, in_desc_sz );
 
     int in_sock = ::accept( _sock, ( sockaddr* )&in_desc, &in_desc_sz );
     A113_ASSERT_OR( 0x0 < in_sock ) {
@@ -311,7 +311,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
     sock_->_conn.port     = in_desc.sin_port;
     sock_->_conn.alive.store( true, std::memory_order_release );
 
-    A113_LOGI( "Accepted {}:{}.", sock_->addr_c_str(), sock_->port() );
+    A113_LOGI( "Accepted {}:{}.", in_desc.sin_addr.s_addr, sock_->port() );
     return A113_OK;
 }
 
