@@ -141,6 +141,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
     sock_->_conn.alive.store( true, std::memory_order_release );
 
     A113_LOGI( "Accepted {}:{}.", _CAGP );
+    return A113_OK;
 }
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::read( const port_R_desc_t& desc_ ) {
@@ -311,6 +312,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
     sock_->_conn.alive.store( true, std::memory_order_release );
 
     A113_LOGI( "Accepted {}:{}.", _CAGP );
+    return A113_OK;
 }
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::read( const port_R_desc_t& desc_ ) {
