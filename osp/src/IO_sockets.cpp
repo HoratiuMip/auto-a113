@@ -238,7 +238,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::connect( const config_t& config_ ) {
 A113_IMPL_FNC status_t IPv4_TCP_socket::disconnect( void ) {
     _conn.alive.store( false, std::memory_order_seq_cst );
 
-    if( INVALID_SOCKET == _sock ) return A113_OK;
+    if( -0x1 == _sock ) return A113_OK;
     
     A113_ASSERT_OR( 0x0 == ::close( std::exchange( _sock, -0x1 ) ) ) {
         A113_LOGE_EX( A113_ERR_SYSCALL, "Bad socket close {}:{}.", _CAGP );
