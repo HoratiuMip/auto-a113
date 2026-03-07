@@ -10,26 +10,72 @@ struct Server {
     struct unsubscribed_t {
         io::IPv4_TCP_socket   client       = {};
         int                   failed_ops   = 0;
-        time_t                born         = 0;
+        time_t                born         = { time( nullptr ) };
     };
     list< unsubscribed_t >   _unsubscribed_list   = {};
     mutex                    _unsubscribed_mtx    = {};
     thread                   _unsubscribed_th     = {};
 
     struct chill_one_t {
-
+        io::IPv4_TCP_socket   client  = {};
+        string                name    = "_Unidentified"; 
     };
     struct room_t {
-        string                        name          = "";
-        list< io::IPv4_TCP_socket >   client_list   = {}; 
-        mutex                         client_mtx    = {}; 
+        string                name         = "";
+        time_t                born         = { time( nullptr ) };
+        list< chill_one_t >   chill_list   = {}; 
+        mutex                 chill_mtx    = {}; 
     };  
-    map< string, room_t >   _room_list   = {};
-    mutex                   _room_mtx    = {};
+    map< string, room_t >   _room_map   = {};
+    mutex                   _room_mtx   = {};
 
 // ======================= Utility =======================
-  
+    string _next_request_arg( const char** req_, int* len_ ) {
+        const char* aux = strchr( *req_, REQ_SPLT_CHR );
+        if( nullptr == aux ) return "";
+
+        int    arg_len = aux - *req_;
+        string ret{ *req_, arg_len };
+
+        *req_ += arg_len + 1;
+        *len_ -= arg_len + 1;
+
+        return ret;
+    }
+
+    inline status_t _respond( io::IPv4_TCP_socket& client_, const string& resp_ ) {
+        return client_.write( {
+            .src_ptr = const_cast< string& >( resp_ ).data(),
+            .src_n   = (int)resp_.length()
+        } );
+    }
+
 // ======================= Mains =======================
+    void _process_unsubscribed_request( const char* req_, int len_, decltype(_unsubscribed_list)::iterator* u_itr_  ) {
+        string resp = "OK";
+
+        switch( *req_++ ) {
+            case OP_JOIN_ROOM: {
+                string room_name = _next_request_arg( &req_, &len_ ); 
+                if( room_name.empty() ) {
+                    resp = "ILL-FORMED"; break;
+                }
+                
+                room_t* room;
+            {
+                lock_guard lck{ _room_mtx };
+                room = &_room_map[ room_name ];
+            } {
+                lock_guard lck{ room->chill_mtx };
+                room->chill_list.emplace_back( move( (*u_itr_)->client ) );
+                *u_itr_ = _unsubscribed_list.erase( *u_itr_ );
+            }
+            break; }
+        }
+
+        this->_respond( (*u_itr_)->client, resp );
+    }
+
     void _unsubscribed_main( void ) {
         for(; _running.load( memory_order_relaxed );) {
             lock_guard lck{ _unsubscribed_mtx };
@@ -38,9 +84,9 @@ struct Server {
             for( auto u_itr = _unsubscribed_list.begin(); u_itr != _unsubscribed_list.end(); ) {
                 unsubscribed_t& unsub = *u_itr;
 
-                char buf[ MAX_PACKET_SIZE ] = { '\0' };
-                int  bc                     = 0x0;
-                int  rx_available           = -0x1;
+                char buf[ MAX_PACKET_SIZE + 1 ] = { '\0' };
+                int  bc                         = 0x0;
+                int  rx_available               = -0x1;
 
                 if( t_now - unsub.born >= DEFAULT_SERVER_UNSUBS_HOLD_TIME_S ) goto l_kill_unsub;
 
@@ -50,12 +96,14 @@ struct Server {
 
                 if( A113_OK == unsub.client.read( {
                     .dst_ptr    = buf,
-                    .dst_n      = sizeof( buf ),
+                    .dst_n      = MAX_PACKET_SIZE,
                     .byte_count = &bc,
                     .req_all    = false,
                     .req_time   = true
                 } ) && bc != 0x0 ) {
-                    spdlog::warn( "{}", string{ buf, bc } );
+                    buf[ bc ] = '\0';
+                    this->_process_unsubscribed_request( buf, bc, &u_itr );
+                    goto l_no_itr_inc;
                 } else goto l_unsub_op_fail;
 
                 goto l_itr_inc; 
@@ -89,8 +137,7 @@ struct Server {
             } ) ) {
                 lock_guard lck{ _unsubscribed_mtx };
                 _unsubscribed_list.emplace_back( unsubscribed_t{
-                    .client = move( client ),
-                    .born   = time( nullptr )
+                    .client = move( client )
                 } );
             } else {
 

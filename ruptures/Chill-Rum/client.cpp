@@ -4,7 +4,27 @@ using namespace std;
 using namespace a113;
 
 struct Client {
-    io::IPv4_TCP_socket   server   = {};
+    io::IPv4_TCP_socket   _server    = {};
+
+    atomic_bool           _running   = { false };
+    thread                _rx_th     = {};
+
+    int _rx_main( void ) {
+        for(; _running.load( memory_order_relaxed ); ) {
+            char buf[ 256 ];
+            int  bc = 0;
+
+            _server.read( {
+                .dst_ptr    = buf,
+                .dst_n      = sizeof( buf ),
+                .byte_count = &bc
+            } );
+
+            if( bc > 0 ) {
+                spdlog::info( "RX: \"{}\"", string{ buf, bc } );
+            }
+        }
+    }
 
     string cli( const string& cmd_ ) {
     #define NEXT (*tok++)
@@ -17,19 +37,26 @@ struct Client {
 
         switch( hash_unsecure( NEXT ) ) {
             case hash_unsecure( "--connect" ): {
-                server.bind( NEXT.c_str(), DEFAULT_PORT );
-                server.connect( {} );
+                _server.bind( NEXT.c_str(), DEFAULT_PORT );
+                _server.connect( {} );
+
+                _running.store( true, memory_order_release );
+                _rx_th = thread( &Client::_rx_th, this );
             break; }
 
             case hash_unsecure( "--disconnect" ): {
-                server.disconnect();
+                _server.disconnect();
+
+                _running.store( false, memory_order_release );
+                if( _rx_th.joinable() ) _rx_th.join();
             break; }
 
             case hash_unsecure( "--join-room" ): {
-                int  buf_sz = 1 + tok->length();
+                int  buf_sz = 1 + tok->length() + 1;
                 char buf[ buf_sz ]; strncpy( buf + 1, tok->c_str(), tok->length() );
+                buf[ 1 + tok->length() ] = REQ_SPLT_CHR;
 
-                server.write( {
+                _server.write( {
                     .src_ptr = buf,
                     .src_n   = buf_sz
                 } );

@@ -10,6 +10,8 @@
 #define   MAX_PACKET_SIZE                     1024
 #define   SERVER_DROP_UNSUB_AFTER_FAIL_N      3
 
+#define   REQ_SPLT_CHR                        '$'
+
 #define   OP_JOIN_ROOM                        0x0A
 
 // ======================= Utility =======================
