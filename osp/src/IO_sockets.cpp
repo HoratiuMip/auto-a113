@@ -136,7 +136,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
         sock_->timeouts( config_.timeouts );
 
     sock_->_conn.addr     = in_desc.sin_addr.s_addr;
-    sock_->_conn.addr_str = ipv4_addr_str_t::from( _conn.addr );
+    sock_->_conn.addr_str = ipv4_addr_str_t::from( sock_->_conn.addr );
     sock_->_conn.port     = in_desc.sin_port;
     sock_->_conn.alive.store( true, std::memory_order_release );
 
@@ -307,11 +307,11 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::accept( IPv4_TCP_socket* sock_, const co
         sock_->timeouts( config_.timeouts );
 
     sock_->_conn.addr     = in_desc.sin_addr.s_addr;
-    sock_->_conn.addr_str = ipv4_addr_str_t::from( _conn.addr );
+    sock_->_conn.addr_str = ipv4_addr_str_t::from( sock_->_conn.addr );
     sock_->_conn.port     = in_desc.sin_port;
     sock_->_conn.alive.store( true, std::memory_order_release );
 
-    A113_LOGI( "Accepted {}:{}.", in_desc.sin_addr.s_addr, sock_->port() );
+    A113_LOGI( "Accepted {}:{}.", sock_->addr_c_str(), sock_->port() );
     return A113_OK;
 }
 
