@@ -3,7 +3,7 @@ cmake_minimum_required( VERSION 3.28.0 )
 project(
     A113
     VERSION 1.0.0
-    LANGUAGES C CXX
+    LANGUAGES C CXX Fortran
 )
 set( A113_VERSION_MAJOR 1 )
 set( A113_VERSION_MINOR 0 )
@@ -85,7 +85,7 @@ function( A113_Fnc_PopExcom excom_name )
     endif()
 endfunction()
 
-function( A113_Fnc_JustCloneRepo url tag alias excom_dir )
+macro( A113_Fnc_JustCloneRepo url tag alias excom_dir )
     message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${excom_dir}/${alias}\"." )
     FetchContent_Declare(
         ${alias}
@@ -94,9 +94,9 @@ function( A113_Fnc_JustCloneRepo url tag alias excom_dir )
         GIT_TAG        "${tag}"
     )
     FetchContent_Populate( ${alias} )
-endfunction( A113_Fnc_JustCloneRepo )
+endmacro( A113_Fnc_JustCloneRepo )
 
-function( A113_Fnc_CloneRepo url tag alias excom_dir )
+macro( A113_Fnc_CloneRepo url tag alias excom_dir )
     message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${excom_dir}/${alias}\"." )
     FetchContent_Declare(
         ${alias}
@@ -105,7 +105,7 @@ function( A113_Fnc_CloneRepo url tag alias excom_dir )
         GIT_TAG        "${tag}"
     )
     FetchContent_MakeAvailable( ${alias} )
-endfunction( A113_Fnc_CloneRepo )
+endmacro( A113_Fnc_CloneRepo )
 
 
 message( STATUS "[A113] Adding the bedrock plate subdirectory." )

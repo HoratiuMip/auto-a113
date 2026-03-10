@@ -49,6 +49,46 @@ enum MeshFlag_ {
     MeshFlag_MakePipe = _BV( 0x0 )
 };
 
+struct unif_t {
+    std::string   name   = "";
+    GLint         loc    = GL_ZERO;
+    GLenum        type   = GL_NONE;
+
+    bool operator < ( const unif_t& other_ ) const { return name < other_.name; }
+
+    A113_inline status_t upload( const glm::mat4& mat_ ) const {
+        glUniformMatrix4fv( loc, 1, GL_FALSE, ( const GLfloat* )&mat_[0][0] );
+        return A113_OK;
+    }
+};
+
+struct pipe_t {
+    pipe_t( void ) = default;
+    pipe_t( const std::string& strid_, GLuint glidx_ ) : strid{ strid_ }, glidx{ glidx_ } {}
+
+    pipe_t( const pipe_t& ) = delete;
+    pipe_t( pipe_t&& other_ ) : strid{ std::move( other_.strid ) }, glidx{ std::exchange( other_.glidx, GL_NONE ) } {}
+
+    ~pipe_t( void ) {
+        A113_ASSERT_OR( GL_NONE != glidx ) return;
+        glDeleteProgram( std::exchange( glidx, GL_NONE ) );
+    }
+
+    std::string          strid   = {};
+    GLuint               glidx   = GL_NONE;
+    std::set< unif_t >   unifs   = {};
+
+    A113_inline void use_program( void ) {
+        glUseProgram( glidx );
+    }
+
+    template< typename _T_ > status_t upload_unif( const std::string& unif_name, const _T_& val_ ) {
+        auto itr = unifs.find( unif_t{ .name = unif_name } );
+        if( itr == unifs.end() ) return A113_ERR_NOT_FOUND;
+        return itr->upload( val_ );
+    }
+};
+
 struct tex_params_t {
     GLuint   min_filter    = GL_LINEAR_MIPMAP_LINEAR;
     GLuint   mag_filter    = GL_LINEAR;
@@ -75,11 +115,124 @@ struct tex_t {
     GLFWimage     RAM_img   = {};
 };
 
+struct lens_t {
+public:
+    lens_t() = default;
+
+    lens_t( glm::vec3 p_, glm::vec3 t_, glm::vec3 u_ )
+    : pos{ p_ }, tar{ t_ }, up{ u_ }
+    {}
+
+public:
+    glm::vec3   pos;
+    glm::vec3   tar;
+    glm::vec3   up;
+
+public:
+    A113_inline lens_t& operator =  ( glm::vec3 p_ ) { pos = p_; return *this; }
+    A113_inline lens_t& operator >= ( glm::vec3 t_ ) { tar = t_; return *this; }
+    A113_inline lens_t& operator ^= ( glm::vec3 u_ ) { up = u_; return *this; }
+
+public:
+    A113_inline glm::mat4 view() const {
+        return glm::lookAt( pos, tar, up );
+    }
+
+    A113_inline glm::vec3 fwd() const {
+        return tar - pos;
+    }
+
+    A113_inline glm::vec3 fwd_n() const {
+        return glm::normalize( this->fwd() );
+    }
+
+    A113_inline glm::vec3 right() const {
+        return glm::cross( this->fwd(), up );
+    }
+
+    A113_inline glm::vec3 right_n() const {
+        return glm::normalize( this->right() );
+    }
+
+    A113_inline float len2tar() const {
+        return glm::length( tar - pos );
+    }
+
+public:
+    lens_t& yaw( float degs_ ) {
+        pos = glm::angleAxis( glm::radians( degs_ ), up ) * pos;
+        return *this;
+    }
+
+    lens_t& zoom( float p_, glm::vec2 lim_ = glm::vec2{ 0.0, std::numeric_limits< float >::max() } ) {
+        const glm::vec3 fwd   = this->fwd_n();
+        const glm::vec3 n_pos = pos + fwd * p_;
+        const float d         = glm::length( n_pos - tar );
+
+        if( d < lim_.s ) {
+            pos = n_pos + ( d - lim_.s ) * fwd;
+        } else if( d > lim_.t ) {
+            pos = n_pos + ( d - lim_.t ) * fwd;
+        } else {
+            pos = n_pos;
+        }
+
+        return *this;
+    }
+
+    // A113_inline lens_t& roll( float ang_ ) {
+    //     up = glm::rotate( up, ang_, this->forward() );
+    //     return *this;
+    // }
+
+    // lens_t& spin( glm::vec2 angs_ ) {
+    //     glm::vec3 rel = pos - tar;
+    //     glm::vec3 sec = glm::cross( tar - pos, up );
+
+    //     rel = glm::rotate( rel, angs_.x, up );
+    //     rel = glm::rotate( rel, -angs_.y, sec );
+
+    //     pos = rel + tar;
+    //     up  = glm::rotate( up, -angs_.y, sec );
+
+    //     return *this;
+    // }
+
+    // lens_t& spin_ul( glm::vec2 angs_, glm::vec2 lim_ = glm::vec2{ -90.0, 90.0 } ) {
+    //     static constexpr const float FPU_OFFSET = 0.001f;
+
+    //     lim_ = glm::radians( lim_ );
+
+    //     glm::vec3 rel     = pos - tar;
+    //     glm::vec3 wing    = glm::cross( tar - pos, up );
+    //     float angwu       = -( glm::acos( glm::dot( rel, up ) / ( glm::length( rel ) * glm::length( up ) ) ) - M_PI / 2.0 );
+    //     glm::vec3 lim_rel = glm::rotate( rel, angwu - ( angs_.t >= 0.0 ? lim_.t : lim_.s ), wing );
+
+    //     glm::vec3 n_rel = glm::rotate( rel, -angs_.t, wing );
+    //     glm::vec3 c1    = glm::cross( lim_rel, rel );
+    //     glm::vec3 c2    = glm::cross( lim_rel, n_rel );
+
+    //     if( glm::dot( c1, c2 ) < 0.0 ) 
+    //         rel = glm::rotate( lim_rel, angs_.t >= 0.0 ? FPU_OFFSET : -FPU_OFFSET, wing );
+    //     else
+    //         rel = glm::rotate( rel, -angs_.t, wing );  
+
+    //     rel = glm::rotate( rel, angs_.s, up );
+    //     pos = rel + tar;
+
+    //     return *this;
+    // }
+};
+
 class Cluster {
 public:
-    /* MIP here after almost one year. Yeah.*/
-    //std::cout << "GOD I SUMMON U. GIVE MIP TEO FOR A FEW DATES (AT LEAST 100)"; 
-    //std::cout << "TY";
+    /* Journal*/
+    // std::cout << "GOD I SUMMON U. GIVE MIP TEO FOR A FEW DATES (AT LEAST 100)"; 
+    // std::cout << "TY";
+    // ----
+    // MIP here after almost one year. Yeah. RIP XX
+    // ----
+    // Astept pe pookie sa scrie carte sa citesc odata acel masterpiece... Da se joaca deadlock plm de obsedat.
 
 public:
     struct init_args_t {
@@ -148,7 +301,7 @@ _A113_PROTECTED:
         cache::Bucket< std::string, shader_t >   _buckets[ ShaderPhase_COUNT ]   = {};
 
         HVec< shader_t > make_shader( std::string source_, std::string strid_, ShaderPhase_ phase_, const char* from_ ) {
-            if( strid_.empty() ) strid_ = std::to_string( std::hash< std::string >{}( source_ ) );
+            if( strid_.empty() ) strid_ = std::format( "{:X}", std::hash< std::string >{}( source_ ) );
 
             auto bkt_hdl_ = cache::BucketHandle_None;
             auto shader = _buckets[ phase_ ].query( strid_, bkt_hdl_ );
@@ -261,21 +414,6 @@ _A113_PROTECTED:
 
     } _shader_cache{ this };
 
-    struct pipe_t {
-        pipe_t( void ) = default;
-        pipe_t( const std::string& strid_, GLuint glidx_ ) : strid{ strid_ }, glidx{ glidx_ } {}
-
-        pipe_t( const pipe_t& ) = delete;
-        pipe_t( pipe_t&& other_ ) : strid{ std::move( other_.strid ) }, glidx{ std::exchange( other_.glidx, GL_NONE ) } {}
-
-        ~pipe_t( void ) {
-            A113_ASSERT_OR( GL_NONE != glidx ) return;
-            glDeleteProgram( std::exchange( glidx, GL_NONE ) );
-        }
-
-        std::string   strid   = {};
-        GLuint        glidx   = GL_NONE;
-    };
     struct _pipe_cache_t : public _internal_struct_t { 
         cache::Bucket< std::string, pipe_t >   _bucket   = {};
 
@@ -290,7 +428,7 @@ _A113_PROTECTED:
                 shader_t* shader = arr_[ phase ]; if( not shader ) continue;
 
                 pretty += stage_pretties[ phase ];
-                strid += shader->strid + '>';
+                strid += shader->strid; if( phase != ShaderPhase_Fragment ) strid += '/';
             }
 
             auto bkt_hdl_ = cache::BucketHandle_None;
@@ -320,6 +458,24 @@ _A113_PROTECTED:
                     return nullptr;
                 }
 
+                GLint unif_count = GL_ZERO;
+                glGetProgramiv( pipe->glidx, GL_ACTIVE_UNIFORMS, &unif_count );
+                for( GLint idx = 0; idx < unif_count; ++idx ) {
+                    GLchar  unif_name[ 256 ];
+                    GLsizei unif_len;
+                    GLint   unif_sz;
+                    GLenum  unif_type;
+
+                    glGetActiveUniform( pipe->glidx, idx, sizeof( unif_name ), &unif_len, &unif_sz, &unif_type, unif_name );
+                    A113_LOGI_IMM( "Found UNIF[{}] of TYPE[{}] in PIPE[{}].", unif_name, unif_type, pipe->glidx );
+
+                    pipe->unifs.emplace( unif_t{
+                        .name = unif_name,
+                        .loc  = glGetUniformLocation( pipe->glidx, unif_name ),
+                        .type = unif_type
+                    } );
+                }
+
                 _bucket.commit( pipe->strid, pipe );
                 A113_LOGI_IMM( "Created PIPE[{}] from {}.", pipe->strid, from_ );
             } else {
@@ -327,6 +483,18 @@ _A113_PROTECTED:
             }
 
             return pipe;
+        }
+
+        HVec< pipe_t > make_pipe_from_sources( const char* srcs_[ ShaderPhase_COUNT ] ) {
+            shader_t* shaders[ ShaderPhase_COUNT ]; memset( shaders, 0x0, sizeof( shaders ) );
+
+            for( int phase = ShaderPhase_Vertex; phase <= ShaderPhase_Fragment; ++phase ) {
+                if( nullptr == srcs_[ phase ] ) continue;
+
+                shaders[ phase ] = _Cluster->_shader_cache.make_shader( srcs_[ phase ], "", ( ShaderPhase_ )phase, "built-in sources" ).get();
+            }
+
+            return this->make_pipe( shaders, "built-in sources" );
         }
 
         HVec< pipe_t > make_pipe_from_prefixed_path( const std::filesystem::path& path_ ) {
@@ -726,6 +894,5 @@ public:
     GLFWwindow* handle( void ) { return _glfwnd; }
 
 };
-
 
 };

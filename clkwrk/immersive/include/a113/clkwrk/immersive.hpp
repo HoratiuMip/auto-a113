@@ -49,8 +49,8 @@ public:
     } config;
 
 public:
-    HVec< imm::Cluster >   _cluster       = nullptr;
-    // Lens3              lens            = { glm::vec3( 0.0, 0.0, 3.0 ), glm::vec3( 0.0, 0.0, 0.0 ), glm::vec3( 0.0, 1.0, 0.0 ) };
+    HVec< imm::Cluster >   _cluster      = nullptr;
+    imm::lens_t            _lens_0       = { glm::vec3{0,0,5}, glm::vec3{0,0,0}, glm::vec3{0,1,0} };
 
 _A113_PROTECTED:
     std::atomic_bool       _is_running   = false;
@@ -70,6 +70,10 @@ public:
 public:
     A113_inline imm::Cluster& cluster( void ) {
         return *_cluster;
+    }
+
+    A113_inline imm::lens_t lens_0( void ) {
+        return _lens_0;
     }
 
     A113_inline auto native_window_handle( void ) {
@@ -114,7 +118,7 @@ public:
             .glfwnd = window
         } );
 
-        // glfwSetWindowUserPointer( render.handle(), params.arg );
+        glfwSetWindowUserPointer( _cluster->handle(), config.ctx );
 
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -173,7 +177,7 @@ public:
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
-            //render.clear( params.clear_color );
+            if( config.clear_color.a != 0.0f ) _cluster->clear( config.clear_color );
 
             A113_ASSERT_OR( A113_OK == this->config.loop_cb( frame_cb_args_t{
                 .ctx = config.ctx,

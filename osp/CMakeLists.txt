@@ -114,6 +114,25 @@ if( A113_Flag_ExcomActive )
     )
 endif()
 
+# LAPACK
+A113_Fnc_PopExcom( "LAPACK" )
+if( A113_Flag_ExcomActive )
+    cmake_policy( SET CMP0079 NEW )
+    set( LAPACKE ON )
+    A113_Fnc_CloneRepo( "https://github.com/Reference-LAPACK/lapack.git" "v3.12.0" lapack "${_excom_dir}" )
+
+    target_link_libraries( A113_OSp
+        PUBLIC lapack
+        PUBLIC blas
+        PUBLIC lapacke
+    )
+   
+    target_include_directories( A113_OSp
+        PUBLIC "${_excom_dir}/lapack/LAPACKE/include"
+        PUBLIC "${lapack_BINARY_DIR}/include"
+    )
+endif()
+
 if( A113_Opt_TargetOS_Windows )
     target_compile_definitions( A113_OSp PUBLIC A113_TARGET_OS_WINDOWS )
 
