@@ -24,15 +24,15 @@ struct _model_t {
             out vec3 vrtx_color;
 
             vec3 plasma( float t ) {
-                const vec3 c0 = vec3(0.058732, 0.023337, 0.543340);
-                const vec3 c1 = vec3(2.176515, 0.238383, 0.753960);
-                const vec3 c2 = vec3(-2.689460, -7.455851, 3.110800);
-                const vec3 c3 = vec3(6.130348, 42.346188, -28.518855);
-                const vec3 c4 = vec3(-11.107436, -82.666311, 60.139848);
-                const vec3 c5 = vec3(10.023066, 71.413618, -54.072187);
-                const vec3 c6 = vec3(-3.658714, -22.931535, 18.191908);
+                const vec3 c0 = vec3(0.277727, 0.005407, 0.334099);
+                const vec3 c1 = vec3(0.105093, 1.404613, 1.384590);
+                const vec3 c2 = vec3(-0.330861, 0.214847, 0.095095);
+                const vec3 c3 = vec3(-4.634230, -5.799100, -19.332440);
+                const vec3 c4 = vec3(6.228269, 14.179933, 56.690552);
+                const vec3 c5 = vec3(4.776384, -13.745145, -65.353032);
+                const vec3 c6 = vec3(-5.435455, 4.645852, 26.312435);
 
-                return c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * c6)))));
+                return c0 + t*(c1 + t*(c2 + t*(c3 + t*(c4 + t*(c5 + t*c6)))));
             }
 
             void main() {
@@ -61,10 +61,11 @@ struct _model_t {
             //A113#strid WIRE_SHADER_VRTX
 
             layout (location = 0) in vec3 in_vrtx;
-            uniform mat4 unif_PV;
+            uniform mat4  unif_PV;
+            uniform float unif_off;
 
             void main() {
-                vec3 vrtx = in_vrtx; vrtx.z += 0.01;
+                vec3 vrtx = in_vrtx; vrtx.z += unif_off;
                 gl_Position = unif_PV * vec4( vrtx, 1.0 );
             }
         )",
@@ -85,7 +86,11 @@ struct _model_t {
     HVec< imm::pipe_t >   pipeb   = nullptr;
     HVec< imm::pipe_t >   pipew   = nullptr;
 
-    GLuint VAO,VBO,EBO; int count;
+    GLuint VAO,VBO,EBO;
+    int count;
+
+    imm::ren_target_t ren_targ;
+    HVec< imm::tex_t > tex;
     void init( void ) {
         pipeb = Imm.cluster().pipe_handler().make_pipe_from_sources( BASE_SHADERS );
         pipew = Imm.cluster().pipe_handler().make_pipe_from_sources( WIRE_SHADERS );
@@ -99,21 +104,23 @@ struct _model_t {
 static imm::lens_t G_lens;
 
 status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
-    static constexpr float STEP_SZ = 0.1f;
-    static rxt_1::srf_grid_t< float > grid_f{ STEP_SZ, -2.0f, 2.0f, STEP_SZ, -3.0f, 3.0f };
-    static rxt_1::srf_grid_t< float > grid_g{ STEP_SZ, -2.0f, 2.0f, STEP_SZ, -3.0f, 3.0f };
+    static constexpr float STEP_SZ = 0.09f;
+    static rxt_1::srf_grid_t< float > grid_f;
+    static rxt_1::srf_grid_t< float > grid_g; 
 
     static float MSE = 0.0;
 
     static auto _do_once_1 = [ & ] () -> char {
-        grid_f.apply( [] ( float x, float y ) -> float {
-            return exp( -2.0*abs( x ) ) + cos( M_PI*y/2.0 );
+        grid_f.span_s< 2 >( (std::tuple< float, float, float >[]){ {STEP_SZ, -2.0f, 2.0f}, {STEP_SZ, -3.0f, 3.0f} } );
+        grid_g.span_s< 2 >( (std::tuple< float, float, float >[]){ {STEP_SZ, -2.0f, 2.0f}, {STEP_SZ, -3.0f, 3.0f} } );
+        grid_f.apply( [] ( float* x ) -> float {
+            return exp( -2.0*abs( x[0] ) ) + cos( M_PI*x[1]/2.0 );
         } );
 
-        grid_g.apply( [] ( float x, float y ) -> float {
-            return 0.09276*pow( x, 4 ) - 0.4881*pow( x, 2 ) + 0.08078*pow( y, 4 ) - 0.7813*pow( y, 2 ) + 1.414;
+        grid_g.apply( [] ( float* x ) -> float {
+            return 0.09276*pow( x[0], 4 ) - 0.4881*pow( x[0], 2 ) + 0.08078*pow( x[1], 4 ) - 0.7813*pow( x[1], 2 ) + 1.414;
         } );
-        Imm.cluster().disengage_face_culling();
+      
         MSE = grid_f.MSE_with( grid_g );
 
         auto [ vbo, ebo ] = grid_f.gen_VBO_and_EBO(); G_model.count = ebo.size();
@@ -127,76 +134,95 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER,ebo.size()*sizeof(unsigned int),ebo.data(),GL_STATIC_DRAW);
 
         glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
-        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray( GL_ZERO );
+    
+        Imm.cluster().disengage_face_culling();
 
         return 0x0;
     }();
 
-    ImGui::Begin( "Plots" );
-
-    ImPlot::PushColormap( ImPlotColormap_Plasma );
-    if( ImPlot::BeginPlot( "f(x,y)", {680,680}, ImPlotFlags_Equal ) ) {
-        ImPlot::PlotHeatmap(
-            "##hm_1", grid_f.raw(), grid_f.yn(), grid_f.xn(),
-            0, 0, nullptr, {-2,-3}, {2,3},
-            ImPlotHeatmapFlags_None
-        );
-
-        ImPlot::EndPlot();
-    }
-    ImGui::SameLine();
-    if( ImPlot::BeginPlot( "g(x,y)", {680,680}, ImPlotFlags_Equal ) ) {
-        ImPlot::PlotHeatmap(
-            "##hm_2", grid_g.raw(), grid_g.yn(), grid_g.xn(),
-            0, 0, nullptr, {-2,-3}, {2,3},
-            ImPlotHeatmapFlags_None
-        );
-
-        ImPlot::EndPlot();
-    }
-    ImPlot::PopColormap();
-
-    ImGui::Separator();
-    ImGui::Text( "MSE: %f", MSE );
-
-    ImGui::End(); 
-
-    if( not ImGui::GetIO().WantCaptureMouse ) {
-        static bool dwn = false;
-        if( not glfwGetMouseButton( Imm.cluster().handle(), GLFW_MOUSE_BUTTON_RIGHT ) ) { dwn = false; goto l_end; }
-    
-        static double l_y = 0;
-        double x, y; glfwGetCursorPos( Imm.cluster().handle(), &x, &y );
-
-        if( not dwn ) {
-            dwn = true;
-            l_y = x;
-        }
-
-        G_lens.yaw_dg( ( x - l_y ) / 12.0 );
-        l_y = x;
-    l_end:
-    }
-
     const glm::mat4 PV = glm::perspective( (float)M_PI/3, 1.0f, 0.1f, 100.0f ) * G_lens.view();
+
+    Imm.cluster().push_render_target( &G_model.ren_targ );
+    glClearColor( 0.1f, 0.1f, 0.1f, 1.0f );
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
     glBindVertexArray(G_model.VAO);
 
     G_model.pipew->use_program();
     G_model.pipew->upload_unif( "unif_PV", PV );
-
+    G_model.pipew->upload_unif( "unif_off", 0.01 );
     Imm.cluster().mode_wireframe();
+    glDrawElements(GL_TRIANGLES, G_model.count, GL_UNSIGNED_INT, 0);
+    G_model.pipew->upload_unif( "unif_off", -0.01 );
     glDrawElements(GL_TRIANGLES, G_model.count, GL_UNSIGNED_INT, 0);
 
     G_model.pipeb->use_program();
     G_model.pipeb->upload_unif( "unif_PV", PV );
     G_model.pipeb->upload_unif( "unif_ZMIN", grid_f.min() );
     G_model.pipeb->upload_unif( "unif_ZMAX", grid_f.max() );
-
     Imm.cluster().mode_fill();
     glDrawElements(GL_TRIANGLES, G_model.count, GL_UNSIGNED_INT, 0);
+    glBindVertexArray( GL_ZERO );
 
-    glBindVertexArray(0);
+    Imm.cluster().pop_render_target();
+
+    ImGui::Begin( "Plots" );
+
+    ImPlot::PushColormap( ImPlotColormap_Viridis );
+    if( ImPlot::BeginPlot( "f(x,y)", {680,680}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {
+        ImPlot::PlotHeatmap(
+            "##hm_1", grid_f.raw(), grid_f.n_of(1), grid_f.n_of(0),
+            0, 0, nullptr, {-2,-3}, {2,3},
+            ImPlotHeatmapFlags_None
+        );
+        ImPlot::EndPlot();
+    }
+    ImGui::SameLine();
+    ImPlot::ColormapScale(
+        "Scale",
+        grid_f.min(),
+        grid_f.max(),
+        ImVec2(60, 200)
+    );
+    // ImGui::SameLine();
+    // if( ImPlot::BeginPlot( "g(x,y)", {680,680}, ImPlotFlags_Equal ) ) {
+    //     ImPlot::PlotHeatmap(
+    //         "##hm_2", grid_g.raw(), grid_g.n_of(1), grid_g.n_of(0),
+    //         0, 0, nullptr, {-2,-3}, {2,3},
+    //         ImPlotHeatmapFlags_None
+    //     );
+
+    //     ImPlot::EndPlot();
+    // }
+    ImPlot::PopColormap();
+
+    ImGui::SameLine();
+    ImGui::Image( (ImTextureID)G_model.ren_targ._tex_glidx, {680,680} );
+
+    ImGui::Separator();
+    ImGui::Text( "MSE: %f", MSE );
+
+    ImGui::End();
+
+    if( not ImGui::GetIO().WantCaptureMouse ) {
+        static bool dwn = false;
+        if( not glfwGetMouseButton( Imm.cluster().handle(), GLFW_MOUSE_BUTTON_RIGHT ) ) { dwn = false; goto l_end; }
+    
+        static double l_x, l_y = 0;
+        double x, y; glfwGetCursorPos( Imm.cluster().handle(), &x, &y );
+
+        if( not dwn ) {
+            dwn = true;
+            l_x = x;
+            l_y = y;
+        }
+
+        G_lens.pitch_dg( ( y - l_y ) / 12.0 );
+        G_lens.yaw_dg( ( x - l_x ) / 12.0 );
+        l_x = x; l_y = y;
+    l_end:
+    }
 
     return A113_OK;
 }
@@ -221,6 +247,8 @@ int main( int argc, char* argv[] ) {
             G_lens >= glm::vec3{ 0, 0, 0 };
             G_lens ^= glm::vec3{ 0, 1, 0 };
 
+            G_model.ren_targ.bind( 680, 680 );
+            
             return A113_OK;
         },
         .loop_cb    = [] ( const clkwrk::Immersive::frame_cb_args_t& args_ ) static -> status_t { return ui_frame( args_ ); }

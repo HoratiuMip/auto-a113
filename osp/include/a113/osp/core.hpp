@@ -23,6 +23,7 @@
 #include <ranges>
 #include <set>
 #include <shared_mutex>
+#include <stack>
 #include <string>
 #include <string_view>
 #include <system_error>

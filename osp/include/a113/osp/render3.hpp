@@ -119,6 +119,54 @@ struct tex_t {
     GLFWimage     RAM_img   = {};
 };
 
+struct ren_target_t {
+    ren_target_t( void ) = default;
+
+    ren_target_t( int w_, int h_ ) 
+    : _w{ w_ }, _h{ h_ }
+    {
+        this->bind();
+    }
+
+    ~ren_target_t( void ) {
+        if( GL_NONE != _tex_glidx ) { glDeleteTextures( 1, &_tex_glidx ); std::exchange( _tex_glidx, GL_NONE ); }                   
+        if( GL_NONE != _fbo )       { glDeleteFramebuffers( 1, &_fbo );   std::exchange( _fbo, GL_NONE ); }
+        if( GL_NONE != _rbo )       { glDeleteRenderbuffers( 1, &_rbo );  std::exchange( _rbo, GL_NONE ); }
+    }
+
+    GLuint   _tex_glidx   = GL_NONE;
+    GLuint   _fbo         = GL_NONE;
+    GLuint   _rbo         = GL_NONE;
+    int      _w           = 0;
+    int      _h           = 0;
+
+    void bind( void ) {
+        glGenTextures  ( 1, &_tex_glidx );
+        glBindTexture  ( GL_TEXTURE_2D, _tex_glidx );
+        glTexImage2D   ( GL_TEXTURE_2D, 0, GL_RGBA, _w, _h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+        glBindTexture  ( GL_TEXTURE_2D, GL_NONE );
+
+        glGenFramebuffers( 1, &_fbo );
+        glBindFramebuffer( GL_FRAMEBUFFER, _fbo );
+
+        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _tex_glidx, 0 );
+
+        glGenRenderbuffers   ( 1, &_rbo );
+        glBindRenderbuffer   ( GL_RENDERBUFFER, _rbo );
+        glRenderbufferStorage( GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, _w, _h );
+        glBindRenderbuffer   ( GL_RENDERBUFFER, GL_NONE );
+
+        glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, _rbo );
+        glBindFramebuffer        ( GL_FRAMEBUFFER, GL_NONE );
+    }
+
+    void bind( int w_, int h_ ) {
+        _w = w_; _h = h_; this->bind();
+    }
+};
+
 struct lens_t {
 public:
     lens_t() = default;
@@ -170,6 +218,16 @@ public:
 
     lens_t& yaw_dg( float degs_ ) {
         pos = glm::angleAxis( glm::radians( degs_ ), glm::vec3{0,1,0} ) * pos;
+        return *this;
+    }
+
+    lens_t& pitch_dl( float degs_ ) {
+        pos = glm::angleAxis( glm::radians( degs_ ), this->right_n() ) * pos;
+        return *this;
+    }
+
+    lens_t& pitch_dg( float degs_ ) {
+        pos = glm::angleAxis( glm::radians( degs_ ), glm::vec3{1,0,0} ) * pos;
         return *this;
     }
 
@@ -282,10 +340,12 @@ public:
     Cluster( Cluster&& ) = delete;
 
 _A113_PROTECTED:
-    GLFWwindow*              _glfwnd     = nullptr;
+    GLFWwindow*                   _glfwnd      = nullptr;
  
-    const char*              _rend_str   = nullptr;     
-    const char*              _gl_str     = nullptr;  
+    const char*                   _rend_str    = nullptr;     
+    const char*                   _gl_str      = nullptr;
+    
+    std::stack< ren_target_t* >   _ren_targs   = {};
 
 _A113_PROTECTED:
     struct _internal_struct_t{ _internal_struct_t( Cluster* Cluster_ ) : _Cluster{ Cluster_ } {} Cluster* _Cluster = nullptr; };
@@ -476,7 +536,7 @@ _A113_PROTECTED:
                     GLenum  unif_type;
 
                     glGetActiveUniform( pipe->glidx, idx, sizeof( unif_name ), &unif_len, &unif_sz, &unif_type, unif_name );
-                    A113_LOGI_IMM( "Found UNIF[{}] of TYPE[{}] in PIPE[{}].", unif_name, unif_type, pipe->glidx );
+                    A113_LOGI_IMM( "Found UNIF[{}] of TYPE[{}] in PIPE[{}].", unif_name, unif_type, pipe->strid );
 
                     pipe->unifs.emplace( unif_t{
                         .name = unif_name,
@@ -537,8 +597,8 @@ _A113_PROTECTED:
 
                 glGenTextures( 1, &tex_glidx );
                 glBindTexture( GL_TEXTURE_2D, tex_glidx );
-                glTexImage2D( GL_TEXTURE_2D, 0, GL_SRGB, x_, y_, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels_ );
-                if( pixels_ ) glGenerateMipmap( GL_TEXTURE_2D );
+                glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, x_, y_, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels_ );
+                if( nullptr != pixels_ ) glGenerateMipmap( GL_TEXTURE_2D );
 
                 glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
                 glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
@@ -901,6 +961,18 @@ public:
 
 public:
     GLFWwindow* handle( void ) { return _glfwnd; }
+
+public:
+    void push_render_target( ren_target_t* ren_trg_ ) {
+        _ren_targs.push( ren_trg_ );
+        glBindFramebuffer( GL_FRAMEBUFFER, ren_trg_->_fbo );
+    }
+
+    void pop_render_target( void ) {
+        _ren_targs.pop();
+        if( not _ren_targs.empty() ) glBindFramebuffer( GL_FRAMEBUFFER, _ren_targs.top()->_fbo );
+        else                         glBindFramebuffer( GL_FRAMEBUFFER, GL_NONE );
+    }
 
 };
 

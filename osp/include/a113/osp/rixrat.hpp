@@ -40,98 +40,113 @@ std::vector< _FTYPE_v_ > linspace_s( _FTYPE_v_ s_, _FTYPE_v_ low_, _FTYPE_v_ upp
 
 template< typename _FTYPE_ = double > struct srf_grid_t {
 public:
-    using apply_op_t = std::function< _FTYPE_( _FTYPE_, _FTYPE_ ) >;
+    using apply_op_t = std::function< _FTYPE_( _FTYPE_* ) >;
 
 public:
     srf_grid_t( void ) = default;
 
-    srf_grid_t( 
-        int xn_, _FTYPE_ xlow_, _FTYPE_ xupp_,
-        int yn_, _FTYPE_ ylow_, _FTYPE_ yupp_
+    // srf_grid_t( 
+    //     int xn_, _FTYPE_ xlow_, _FTYPE_ xupp_,
+    //     int yn_, _FTYPE_ ylow_, _FTYPE_ yupp_
+    // ) {
+    //     this->span_n( xn_, xlow_, xupp_, yn_, ylow_, yupp_ );
+    // }
+    // srf_grid_t( 
+    //     _FTYPE_ xs_, _FTYPE_ xlow_, _FTYPE_ xupp_,
+    //     _FTYPE_ ys_, _FTYPE_ ylow_, _FTYPE_ yupp_
+    // ) {
+    //     this->span_s( xs_, xlow_, xupp_, ys_, ylow_, yupp_ );
+    // }
+
+public:
+    std::vector< std::vector< _FTYPE_ > >   _spans   = {};
+    std::vector< _FTYPE_ >                  _field   = {};
+    _FTYPE_                                 _min     = _FTYPE_{0x0};
+    _FTYPE_                                 _max     = _FTYPE_{0x0};
+
+public:
+    A113_inline _FTYPE_* raw( void ) { return _field.data(); }
+
+    A113_inline int n_of( int d_ ) const { return (int)_spans[d_].size(); }
+    A113_inline int count( void ) const { return (int)_field.size(); }
+    A113_inline int dims( void ) const { return (int)_spans.size(); }
+
+public:
+    A113_inline void _align_field( void ) {
+        int z_field_sz = 1;
+        for( auto& span : _spans ) z_field_sz *= span.size();
+        _field.assign( z_field_sz, _FTYPE_{0x0} );
+    }
+
+public:
+    template< int _D_ > srf_grid_t& span_n( 
+        std::tuple< int, _FTYPE_, _FTYPE_ > spans_[ _D_ ] 
     ) {
-        this->span_n( xn_, xlow_, xupp_, yn_, ylow_, yupp_ );
-    }
-    srf_grid_t( 
-        _FTYPE_ xs_, _FTYPE_ xlow_, _FTYPE_ xupp_,
-        _FTYPE_ ys_, _FTYPE_ ylow_, _FTYPE_ yupp_
-    ) {
-        this->span_s( xs_, xlow_, xupp_, ys_, ylow_, yupp_ );
-    }
-
-public:
-    std::vector< _FTYPE_ >   _x_span   = {};
-    std::vector< _FTYPE_ >   _y_span   = {};
-    std::vector< _FTYPE_ >   _z_mat    = {};
-    _FTYPE_                  _z_min    = _FTYPE_{0x0};
-    _FTYPE_                  _z_max    = _FTYPE_{0x0};
-
-public:
-    A113_inline _FTYPE_* raw( void ) { return _z_mat.data(); }
-
-    A113_inline int xn( void ) const { return (int)_x_span.size(); }
-    A113_inline int yn( void ) const { return (int)_y_span.size(); }
-    A113_inline int count( void ) const { return (int)_z_mat.size(); }
-
-public:
-    A113_inline void _align_z_mat( void ) {
-        _z_mat.assign( this->xn() * this->yn(), _FTYPE_{0x0} );
-    }
-
-    void _apply_for_y( apply_op_t op_, int y1_, int y2_, _FTYPE_* z_min_, _FTYPE_* z_max_ ) {
-        *z_min_ = *z_max_ = _z_mat[0x0];
-
-        int z = 0x0;
-        for( int y = y1_; y < y2_; ++y ) {
-            for( int x = 0; x < this->xn(); ++x ) {
-                _z_mat[z] = op_( _x_span[x], _y_span[y] );
-                if( _z_mat[z] < *z_min_ ) *z_min_ = _z_mat[z];
-                else if( _z_mat[z] > *z_max_ ) *z_max_ = _z_mat[z];
-                ++z;
-            }
+        _spans.assign( _D_, {} );
+        for( int d = 0x0; d < _D_; ++d ) {
+            _spans[d] = linspace_n( 
+                std::get< 0 >( spans_[d] ), std::get< 1 >( spans_[d] ), std::get< 2 >( spans_[d] ) 
+            );
         }
-    }
-
-public:
-    A113_inline srf_grid_t& span_n( 
-        int xn_, _FTYPE_ xlow_, _FTYPE_ xupp_, 
-        int yn_, _FTYPE_ ylow_, _FTYPE_ yupp_ 
-    ) {
-        _x_span = linspace_n( xn_, xlow_, xupp_ );
-        _y_span = linspace_n( yn_, ylow_, yupp_ );
-        this->_align_z_mat();
+        this->_align_field();
         return *this;
     }
 
-    A113_inline srf_grid_t& span_s( 
-        _FTYPE_ xs_, _FTYPE_ xlow_, _FTYPE_ xupp_, 
-        _FTYPE_ ys_, _FTYPE_ ylow_, _FTYPE_ yupp_
+    template< int _D_ > srf_grid_t& span_s( 
+        std::tuple< _FTYPE_, _FTYPE_, _FTYPE_ > spans_[ _D_ ] 
     ) {
-        _x_span = linspace_s( xs_, xlow_, xupp_ );
-        _y_span = linspace_s( ys_, ylow_, yupp_ );
-        this->_align_z_mat();
+        _spans.assign( _D_, {} );
+        for( int d = 0x0; d < _D_; ++d ) {
+            _spans[d] = linspace_s( 
+                std::get< 0 >( spans_[d] ), std::get< 1 >( spans_[d] ), std::get< 2 >( spans_[d] ) 
+            );
+        }
+        this->_align_field();
         return *this;
     }
 
 public:
-    A113_inline _FTYPE_& z_at( int x_, int y_ ) {
-        return _z_mat[ y_ * this->xn() + x_ ];
+    _FTYPE_& field_at( int* x_ ) {
+        int offset = 0x0;
+
+        for( int d = this->dims() - 1; d >= 0x1; --d ) {
+            offset += x_[d] * this->n_of( d-1 ) + x_[d-1];
+        }
+        return _field[ offset ];
     }
 
-    A113_inline _FTYPE_& operator () ( int x_, int y_ ) {
-        return this->z_at( x_, y_ );
+    A113_inline _FTYPE_& operator () ( int* x_ ) {
+        return this->field_at( x_ );
     }
 
-    A113_inline _FTYPE_ min( void ) const { return _z_min; }
-    A113_inline _FTYPE_ max( void ) const { return _z_max; }
+    A113_inline _FTYPE_ min( void ) const { return _min; }
+    A113_inline _FTYPE_ max( void ) const { return _max; }
 
 public:
     srf_grid_t& apply( apply_op_t op_ ) {
-        this->_apply_for_y( op_, 0, this->yn(), &_z_min, &_z_max );
+        const int count       = this->count();
+        const int dims        = this->dims();
+        _FTYPE_   x[ dims ]   = { _FTYPE_{0x0} };
+        int       ds[ count ] = { 0x0 };
+        
+        _min = _max = _field[0x0];
+
+        for( int i = 0x0; i < count; ++i ) {
+            for( int d = 0x0; d < dims; ++d ) x[d] = _spans[d][ds[d]];
+            _field[i] = op_( x );
+            if( _field[i] > _max ) _max = _field[i];
+            else if( _field[i] < _min ) _min = _field[i];
+
+            for( int d = 0x0; d < dims - 1; ++d ) 
+                if( ++ds[d] >= _spans[d].size() ) { ++ds[d+1]; ds[d] = 0x0; }
+                else break;
+        }
+
         return *this;
     } 
 
-    srf_grid_t& apply_spwn( int th_count_, apply_op_t op_ ) {
-        const int y_count = this->yn();
+    /*srf_grid_t& apply_spwn( int th_count_, apply_op_t op_ ) {
+        const int y_count = yn;
         const int y_step  = (int)( y_count / th_count_ );
         int       y_crt   = 0;
 
@@ -146,43 +161,48 @@ public:
         }
         for( auto& th : ths ) if( th.joinable() ) th.join();
         return *this;
-    }
+    }*/
 
 public:
     _FTYPE_ MSE_with( const srf_grid_t& other_ ) const {
-        const int N = this->xn() * this->yn();
-        return _FTYPE_{1.0}/N * rxt_0::roam_acc_2( _z_mat.data(), other_._z_mat.data(), N, _FTYPE_{0x0}, [] ( _FTYPE_ rhs, _FTYPE_ lhs ) {
+        const int N = this->count();
+        return _FTYPE_{1.0}/N * rxt_0::roam_acc_2( _field.data(), other_._field.data(), N, _FTYPE_{0x0}, [] ( _FTYPE_ rhs, _FTYPE_ lhs ) {
             return std::pow( rhs - lhs, 2 );
         } );
     }
 
 public:
-    std::pair< std::vector< _FTYPE_ >, std::vector< unsigned int > > gen_VBO_and_EBO( void ) {
-        const int point_count = this->count();
-        const int quad_count  = ( this->xn() - 1 ) * ( this->yn() - 1 );
+    std::pair< std::vector< float >, std::vector< unsigned int > > gen_VBO_and_EBO( int d0_ = 0x0, int d1_ = 0x1 ) {
+        const std::vector< _FTYPE_ >& x_span = _spans[ d0_ ];
+        const std::vector< _FTYPE_ >& y_span = _spans[ d1_ ];
+        const int                     xn     = x_span.size();
+        const int                     yn     = y_span.size();
 
-        std::vector< _FTYPE_ >      vbo{}; vbo.reserve( 3 * point_count );
+        const int point_count = this->count();
+        const int quad_count  = ( xn - 1 ) * ( yn - 1 );
+
+        std::vector< float >        vbo{}; vbo.reserve( 3 * point_count );
         std::vector< unsigned int > ebo{}; ebo.reserve( 6 * quad_count );
 
         int z = 0x0;
-        for( int y = 0x0; y < this->yn()-1; ++y ) {
-            for( int x = 0x0; x < this->xn()-1; ++x ) {
-                vbo.push_back( _x_span[x] ); vbo.push_back( _y_span[y] ); vbo.push_back( _z_mat[z++] );
+        for( int y = 0x0; y < yn-1; ++y ) {
+            for( int x = 0x0; x < xn-1; ++x ) {
+                vbo.push_back( x_span[x] ); vbo.push_back( y_span[y] ); vbo.push_back( _field[z++] );
                 
                 unsigned int 
-                base_ebo_idx = y * this->xn() + x + 1; ebo.push_back( base_ebo_idx );
-                base_ebo_idx -= 1;                     ebo.push_back( base_ebo_idx );
-                base_ebo_idx += this->xn();            ebo.push_back( base_ebo_idx );
-                                                       ebo.push_back( base_ebo_idx );
-                base_ebo_idx += 1;                     ebo.push_back( base_ebo_idx );
-                base_ebo_idx -= this->xn();            ebo.push_back( base_ebo_idx );
+                base_ebo_idx = y * xn + x + 1; ebo.push_back( base_ebo_idx );
+                base_ebo_idx -= 1;             ebo.push_back( base_ebo_idx );
+                base_ebo_idx += xn;            ebo.push_back( base_ebo_idx );
+                                               ebo.push_back( base_ebo_idx );
+                base_ebo_idx += 1;             ebo.push_back( base_ebo_idx );
+                base_ebo_idx -= xn;            ebo.push_back( base_ebo_idx );
             }
-            vbo.push_back( _x_span.back() ); vbo.push_back( _y_span[y] ); vbo.push_back( _z_mat[z++] );
+            vbo.push_back( x_span.back() ); vbo.push_back( y_span[y] ); vbo.push_back( _field[z++] );
         }
-        for( int x = 0x0; x < this->xn(); ++x ) {
-            vbo.push_back( _x_span[x] ); vbo.push_back( _y_span.back() ); vbo.push_back( _z_mat[z++] );
+        for( int x = 0x0; x < xn; ++x ) {
+            vbo.push_back( x_span[x] ); vbo.push_back( y_span.back() ); vbo.push_back( _field[z++] );
         }
-
+      
         return { vbo, ebo };
     }
 
