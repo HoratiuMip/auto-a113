@@ -2,7 +2,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-#include <a113/osp/rixrat_core.hpp>
+#include <a113/osp/rixrat.hpp>
 
 #include <lapacke.h>
 
@@ -17,13 +17,26 @@ struct _model_t {
             //A113#strid BASE_SHADER_VRTX
 
             layout (location = 0) in vec3 in_vrtx;
+            uniform mat4  unif_PV;
+            uniform float unif_ZMIN;
+            uniform float unif_ZMAX;
 
-            out vec3 color;
+            out vec3 vrtx_color;
 
-            uniform mat4 unif_PV;
+            vec3 plasma( float t ) {
+                const vec3 c0 = vec3(0.058732, 0.023337, 0.543340);
+                const vec3 c1 = vec3(2.176515, 0.238383, 0.753960);
+                const vec3 c2 = vec3(-2.689460, -7.455851, 3.110800);
+                const vec3 c3 = vec3(6.130348, 42.346188, -28.518855);
+                const vec3 c4 = vec3(-11.107436, -82.666311, 60.139848);
+                const vec3 c5 = vec3(10.023066, 71.413618, -54.072187);
+                const vec3 c6 = vec3(-3.658714, -22.931535, 18.191908);
+
+                return c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * c6)))));
+            }
 
             void main() {
-                color       = in_vrtx;
+                vrtx_color = plasma( 1.0 - (unif_ZMAX - in_vrtx.z) / (unif_ZMAX - unif_ZMIN) );
                 gl_Position = unif_PV * vec4( in_vrtx, 1.0 );
             }
         )",
@@ -33,63 +46,62 @@ struct _model_t {
         R"(
             #version 330 core
             //A113#strid BASE_SHADER_FRAG
+            out vec4 frag;
 
-            in vec3 color;
-
-            out vec4 FragColor;
+            in vec3 vrtx_color;
 
             void main() {
-                FragColor = vec4(color,1.0);
+                frag = vec4( vrtx_color, 1.0 );
+            }
+        )"
+    };
+    inline static const char*   WIRE_SHADERS[ 5 ]   = {
+        R"(
+            #version 330 core
+            //A113#strid WIRE_SHADER_VRTX
+
+            layout (location = 0) in vec3 in_vrtx;
+            uniform mat4 unif_PV;
+
+            void main() {
+                vec3 vrtx = in_vrtx; vrtx.z += 0.01;
+                gl_Position = unif_PV * vec4( vrtx, 1.0 );
+            }
+        )",
+        nullptr,
+        nullptr,
+        nullptr,
+        R"(
+            #version 330 core
+            //A113#strid WIRE_SHADER_FRAG
+            out vec4 frag;
+
+            void main() {
+                frag = vec4( 0.0, 0.0, 0.0, 1.0 );
             }
         )"
     };
 
-    HVec< imm::pipe_t >   pipe   = nullptr;
+    HVec< imm::pipe_t >   pipeb   = nullptr;
+    HVec< imm::pipe_t >   pipew   = nullptr;
 
-    inline static float vertices[] = {
-        1.0f,1.0f,1.0f,
-        0.5f,1.0f,1.0f,
-        0.5f, 0.5f,1.0f,
-        1.0f, 0.5f,1.0f,
-        1.0f,1.0f, 0.5f,
-        0.5f,1.0f, 0.5f,
-        0.5f, 0.5f, 0.5f,
-        1.0f, 0.5f, 0.5f
-    };
-    inline static unsigned int indices[] = {
-        0,1,2, 2,3,0, // back
-        4,5,6, 6,7,4, // front
-        0,4,7, 7,3,0, // left
-        1,5,6, 6,2,1, // right
-        3,2,6, 6,7,3, // top
-        0,1,5, 5,4,0  // bottom
-    };
-    GLuint VAO,VBO,EBO;
+    GLuint VAO,VBO,EBO; int count;
     void init( void ) {
-        pipe = Imm.cluster().pipe_handler().make_pipe_from_sources( BASE_SHADERS );
+        pipeb = Imm.cluster().pipe_handler().make_pipe_from_sources( BASE_SHADERS );
+        pipew = Imm.cluster().pipe_handler().make_pipe_from_sources( WIRE_SHADERS );
 
         glGenVertexArrays(1,&VAO);
         glGenBuffers(1,&VBO);
         glGenBuffers(1,&EBO);
-
-        glBindVertexArray(VAO);
-
-        glBindBuffer(GL_ARRAY_BUFFER,VBO);
-        glBufferData(GL_ARRAY_BUFFER,sizeof(vertices),vertices,GL_STATIC_DRAW);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(indices),indices,GL_STATIC_DRAW);
-
-        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
-        glEnableVertexAttribArray(0);
     }
 }; static _model_t G_model;
 
 static imm::lens_t G_lens;
 
 status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
-    static rxt_1::srf_grid_t< float > grid_f{ 0.01f, -2.0f, 2.0f, 0.01f, -3.0f, 3.0f };
-    static rxt_1::srf_grid_t< float > grid_g{ 0.01f, -2.0f, 2.0f, 0.01f, -3.0f, 3.0f };
+    static constexpr float STEP_SZ = 0.1f;
+    static rxt_1::srf_grid_t< float > grid_f{ STEP_SZ, -2.0f, 2.0f, STEP_SZ, -3.0f, 3.0f };
+    static rxt_1::srf_grid_t< float > grid_g{ STEP_SZ, -2.0f, 2.0f, STEP_SZ, -3.0f, 3.0f };
 
     static float MSE = 0.0;
 
@@ -101,8 +113,21 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
         grid_g.apply( [] ( float x, float y ) -> float {
             return 0.09276*pow( x, 4 ) - 0.4881*pow( x, 2 ) + 0.08078*pow( y, 4 ) - 0.7813*pow( y, 2 ) + 1.414;
         } );
-
+        Imm.cluster().disengage_face_culling();
         MSE = grid_f.MSE_with( grid_g );
+
+        auto [ vbo, ebo ] = grid_f.gen_VBO_and_EBO(); G_model.count = ebo.size();
+
+        glBindVertexArray(G_model.VAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER,G_model.VBO);
+        glBufferData(GL_ARRAY_BUFFER,vbo.size()*sizeof(float),vbo.data(),GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,G_model.EBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER,ebo.size()*sizeof(unsigned int),ebo.data(),GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
+        glEnableVertexAttribArray(0);
 
         return 0x0;
     }();
@@ -148,17 +173,29 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
             l_y = x;
         }
 
-        G_lens.yaw( ( x - l_y ) / 100.0 );
+        G_lens.yaw_dg( ( x - l_y ) / 12.0 );
         l_y = x;
     l_end:
     }
 
     const glm::mat4 PV = glm::perspective( (float)M_PI/3, 1.0f, 0.1f, 100.0f ) * G_lens.view();
-    G_model.pipe->upload_unif( "unif_PV", PV );
-    
-    G_model.pipe->use_program();
+
     glBindVertexArray(G_model.VAO);
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+
+    G_model.pipew->use_program();
+    G_model.pipew->upload_unif( "unif_PV", PV );
+
+    Imm.cluster().mode_wireframe();
+    glDrawElements(GL_TRIANGLES, G_model.count, GL_UNSIGNED_INT, 0);
+
+    G_model.pipeb->use_program();
+    G_model.pipeb->upload_unif( "unif_PV", PV );
+    G_model.pipeb->upload_unif( "unif_ZMIN", grid_f.min() );
+    G_model.pipeb->upload_unif( "unif_ZMAX", grid_f.max() );
+
+    Imm.cluster().mode_fill();
+    glDrawElements(GL_TRIANGLES, G_model.count, GL_UNSIGNED_INT, 0);
+
     glBindVertexArray(0);
 
     return A113_OK;

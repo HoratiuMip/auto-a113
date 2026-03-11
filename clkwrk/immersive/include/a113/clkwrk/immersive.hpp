@@ -40,7 +40,7 @@ public:
         int                     width         = 64;
         int                     height        = 64;
         SrfBeginAs_             srf_bgn_as    = SrfBeginAs_Default;
-        glm::vec4               clear_color   = { 0.05, 0.05, 0.1, 1.0 };
+        glm::vec4               clear_color   = { 0.0, 0.0, 0.0, 1.0 };
         std::filesystem::path   icon_path     = {};
 
         init_callback_t         init_cb       = nullptr;

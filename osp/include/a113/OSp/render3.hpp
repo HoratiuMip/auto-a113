@@ -55,7 +55,11 @@ struct unif_t {
     GLenum        type   = GL_NONE;
 
     bool operator < ( const unif_t& other_ ) const { return name < other_.name; }
-
+    
+    A113_inline status_t upload( const glm::f32& f_ ) const {
+        glUniform1f( loc, f_ );
+        return A113_OK;
+    }
     A113_inline status_t upload( const glm::mat4& mat_ ) const {
         glUniformMatrix4fv( loc, 1, GL_FALSE, ( const GLfloat* )&mat_[0][0] );
         return A113_OK;
@@ -159,8 +163,13 @@ public:
     }
 
 public:
-    lens_t& yaw( float degs_ ) {
+    lens_t& yaw_dl( float degs_ ) {
         pos = glm::angleAxis( glm::radians( degs_ ), up ) * pos;
+        return *this;
+    }
+
+    lens_t& yaw_dg( float degs_ ) {
+        pos = glm::angleAxis( glm::radians( degs_ ), glm::vec3{0,1,0} ) * pos;
         return *this;
     }
 

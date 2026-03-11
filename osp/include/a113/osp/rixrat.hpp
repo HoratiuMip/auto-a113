@@ -62,23 +62,31 @@ public:
     std::vector< _FTYPE_ >   _x_span   = {};
     std::vector< _FTYPE_ >   _y_span   = {};
     std::vector< _FTYPE_ >   _z_mat    = {};
+    _FTYPE_                  _z_min    = _FTYPE_{0x0};
+    _FTYPE_                  _z_max    = _FTYPE_{0x0};
 
 public:
     A113_inline _FTYPE_* raw( void ) { return _z_mat.data(); }
 
     A113_inline int xn( void ) const { return (int)_x_span.size(); }
     A113_inline int yn( void ) const { return (int)_y_span.size(); }
+    A113_inline int count( void ) const { return (int)_z_mat.size(); }
 
 public:
     A113_inline void _align_z_mat( void ) {
         _z_mat.assign( this->xn() * this->yn(), _FTYPE_{0x0} );
     }
 
-    void _apply_for_y( apply_op_t op_, int y1_, int y2_ ) {
-        int idx = 0x0;
+    void _apply_for_y( apply_op_t op_, int y1_, int y2_, _FTYPE_* z_min_, _FTYPE_* z_max_ ) {
+        *z_min_ = *z_max_ = _z_mat[0x0];
+
+        int z = 0x0;
         for( int y = y1_; y < y2_; ++y ) {
             for( int x = 0; x < this->xn(); ++x ) {
-                _z_mat[idx++] = op_( _x_span[x], _y_span[y] );
+                _z_mat[z] = op_( _x_span[x], _y_span[y] );
+                if( _z_mat[z] < *z_min_ ) *z_min_ = _z_mat[z];
+                else if( _z_mat[z] > *z_max_ ) *z_max_ = _z_mat[z];
+                ++z;
             }
         }
     }
@@ -113,9 +121,12 @@ public:
         return this->z_at( x_, y_ );
     }
 
+    A113_inline _FTYPE_ min( void ) const { return _z_min; }
+    A113_inline _FTYPE_ max( void ) const { return _z_max; }
+
 public:
     srf_grid_t& apply( apply_op_t op_ ) {
-        this->_apply_for_y( op_, 0, this->yn() );
+        this->_apply_for_y( op_, 0, this->yn(), &_z_min, &_z_max );
         return *this;
     } 
 
@@ -128,7 +139,8 @@ public:
         for( auto& th : ths ) {
             th = std::thread( 
                 &srf_grid_t< _FTYPE_ >::_apply_for_y, this, 
-                op_, y_crt, std::min( y_count, y_crt + y_step )
+                op_, y_crt, std::min( y_count, y_crt + y_step ),
+                nullptr, nullptr
             );
             y_crt += y_step;
         }
@@ -142,6 +154,36 @@ public:
         return _FTYPE_{1.0}/N * rxt_0::roam_acc_2( _z_mat.data(), other_._z_mat.data(), N, _FTYPE_{0x0}, [] ( _FTYPE_ rhs, _FTYPE_ lhs ) {
             return std::pow( rhs - lhs, 2 );
         } );
+    }
+
+public:
+    std::pair< std::vector< _FTYPE_ >, std::vector< unsigned int > > gen_VBO_and_EBO( void ) {
+        const int point_count = this->count();
+        const int quad_count  = ( this->xn() - 1 ) * ( this->yn() - 1 );
+
+        std::vector< _FTYPE_ >      vbo{}; vbo.reserve( 3 * point_count );
+        std::vector< unsigned int > ebo{}; ebo.reserve( 6 * quad_count );
+
+        int z = 0x0;
+        for( int y = 0x0; y < this->yn()-1; ++y ) {
+            for( int x = 0x0; x < this->xn()-1; ++x ) {
+                vbo.push_back( _x_span[x] ); vbo.push_back( _y_span[y] ); vbo.push_back( _z_mat[z++] );
+                
+                unsigned int 
+                base_ebo_idx = y * this->xn() + x + 1; ebo.push_back( base_ebo_idx );
+                base_ebo_idx -= 1;                     ebo.push_back( base_ebo_idx );
+                base_ebo_idx += this->xn();            ebo.push_back( base_ebo_idx );
+                                                       ebo.push_back( base_ebo_idx );
+                base_ebo_idx += 1;                     ebo.push_back( base_ebo_idx );
+                base_ebo_idx -= this->xn();            ebo.push_back( base_ebo_idx );
+            }
+            vbo.push_back( _x_span.back() ); vbo.push_back( _y_span[y] ); vbo.push_back( _z_mat[z++] );
+        }
+        for( int x = 0x0; x < this->xn(); ++x ) {
+            vbo.push_back( _x_span[x] ); vbo.push_back( _y_span.back() ); vbo.push_back( _z_mat[z++] );
+        }
+
+        return { vbo, ebo };
     }
 
 };
