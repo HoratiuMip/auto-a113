@@ -96,7 +96,10 @@ public:
         glewInit();
 
         glfwSetErrorCallback( [] ( int err_, const char* desc_ ) static -> void {
-            A113_LOGE_IMM( "GLFW error [{}] occured: \"{}\".", err_, desc_ );
+            static std::string prev_glfw_err_str = "";
+            if( prev_glfw_err_str == desc_ ) return;
+            prev_glfw_err_str = desc_;
+            A113_LOGE_IMM( "GLFW error [{}] occured: \"{}\".", err_, prev_glfw_err_str );
         } );
     
         glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );

@@ -1,7 +1,7 @@
 #pragma once
 #include <a113/osp/core.hpp>
 
-namespace a113::rxt_0 {
+namespace a113::mdn_0 {
 
 template< typename _FTYPE_v_, typename _FTYPE_b_ >
 _FTYPE_b_ linspace_n( _FTYPE_v_* v_, int n_, _FTYPE_b_ low_, _FTYPE_b_ upp_ ) {
@@ -21,12 +21,12 @@ _FTYPE_r_ roam_acc_2( _FTYPE_1_* v1_, _FTYPE_2_* v2_, int n_, _FTYPE_r_ acc_, _O
 
 }
 
-namespace a113::rxt_1 {
+namespace a113::mdn_1 {
 
 template< typename _FTYPE_v_ >
 std::vector< _FTYPE_v_ > linspace_n( int n_, _FTYPE_v_ low_, _FTYPE_v_ upp_ ) {
     std::vector< _FTYPE_v_ > span; span.assign( n_, _FTYPE_v_{0x0} );
-    rxt_0::linspace_n( span.data(), n_, low_, upp_ );
+    mdn_0::linspace_n( span.data(), n_, low_, upp_ );
     return span;
 }
 
@@ -34,7 +34,7 @@ template< typename _FTYPE_v_ >
 std::vector< _FTYPE_v_ > linspace_s( _FTYPE_v_ s_, _FTYPE_v_ low_, _FTYPE_v_ upp_ ) {
     int steps = ( int )(( upp_ - low_ ) / s_ );
     std::vector< _FTYPE_v_ > span; span.assign( steps, _FTYPE_v_{0x0} );
-    rxt_0::linspace_n( span.data(), steps, low_, upp_ );
+    mdn_0::linspace_n( span.data(), steps, low_, upp_ );
     return span;
 }
 
@@ -166,7 +166,7 @@ public:
 public:
     _FTYPE_ MSE_with( const srf_grid_t& other_ ) const {
         const int N = this->count();
-        return _FTYPE_{1.0}/N * rxt_0::roam_acc_2( _field.data(), other_._field.data(), N, _FTYPE_{0x0}, [] ( _FTYPE_ rhs, _FTYPE_ lhs ) {
+        return _FTYPE_{1.0}/N * mdn_0::roam_acc_2( _field.data(), other_._field.data(), N, _FTYPE_{0x0}, [] ( _FTYPE_ rhs, _FTYPE_ lhs ) {
             return std::pow( rhs - lhs, 2 );
         } );
     }

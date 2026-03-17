@@ -133,4 +133,7 @@ foreach( rupture ${A113_MAKE_RUPTURES} )
     add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/ruptures/${rupture}" )
 endforeach()
 
+add_executable( "${PROJECT_NAME}-fasttest" fasttest.cpp )
+target_link_libraries( "${PROJECT_NAME}-fasttest" A113_OSp )
+
 message( STATUS "[A113] CMake script done." )

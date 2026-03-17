@@ -2,7 +2,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-#include <a113/osp/rixrat.hpp>
+#include <a113/osp/madonna.hpp>
 
 #include <lapacke.h>
 
@@ -105,16 +105,24 @@ static imm::lens_t G_lens;
 
 status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
     static constexpr float STEP_SZ = 0.09f;
-    static rxt_1::srf_grid_t< float > grid_f;
-    static rxt_1::srf_grid_t< float > grid_g; 
+    static mdn_1::srf_grid_t< float > grid_f;
+    static mdn_1::srf_grid_t< float > grid_g; 
 
     static float MSE = 0.0;
 
     static auto _do_once_1 = [ & ] () -> char {
-        grid_f.span_s< 2 >( (std::tuple< float, float, float >[]){ {STEP_SZ, -2.0f, 2.0f}, {STEP_SZ, -3.0f, 3.0f} } );
+        grid_f.span_s< 2 >( (std::tuple< float, float, float >[]){ {STEP_SZ, -10.0f, 10.0f}, {STEP_SZ, -10.0f, 10.0f} } );
         grid_g.span_s< 2 >( (std::tuple< float, float, float >[]){ {STEP_SZ, -2.0f, 2.0f}, {STEP_SZ, -3.0f, 3.0f} } );
         grid_f.apply( [] ( float* x ) -> float {
-            return exp( -2.0*abs( x[0] ) ) + cos( M_PI*x[1]/2.0 );
+            float sum = 0.0f;
+            for( float a = -4.0f; a <= 4.0f; a += 8.0f ) {
+                const float b = -pow( pow(x[0]+a,2) + pow(x[1]+a,2), 2 );
+                const float c = exp( b / 1000.0f );
+                const float d = 0.1f * exp( b );
+
+                sum += c + d;
+            }
+            return pow( sum, 3 );
         } );
 
         grid_g.apply( [] ( float* x ) -> float {
@@ -173,7 +181,7 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
     if( ImPlot::BeginPlot( "f(x,y)", {680,680}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {
         ImPlot::PlotHeatmap(
             "##hm_1", grid_f.raw(), grid_f.n_of(1), grid_f.n_of(0),
-            0, 0, nullptr, {-2,-3}, {2,3},
+            0, 0, nullptr, {-10,-10}, {10,10},
             ImPlotHeatmapFlags_None
         );
         ImPlot::EndPlot();
@@ -243,7 +251,7 @@ int main( int argc, char* argv[] ) {
             ImGui::StyleColorsClassic();
 
             G_model.init();
-            G_lens = glm::vec3{ 0, 0, 6 };
+            G_lens = glm::vec3{ 0, 0, 16 };
             G_lens >= glm::vec3{ 0, 0, 0 };
             G_lens ^= glm::vec3{ 0, 1, 0 };
 
