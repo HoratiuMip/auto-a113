@@ -1,5 +1,16 @@
 #pragma once
+/**
+ * @file: osp/madonna.hpp
+ * @brief: 
+ * @details
+ * @authors: Vatca "Mipsan" Tudor-Horatiu
+ */
+/* === engine includes === */
 #include <a113/osp/core.hpp>
+/* === stl includes  */
+#include <complex>
+/* === excom includes === */
+#include <lapacke.h>
 
 namespace a113::mdn_0 {
 
@@ -18,6 +29,25 @@ _FTYPE_r_ roam_acc_2( _FTYPE_1_* v1_, _FTYPE_2_* v2_, int n_, _FTYPE_r_ acc_, _O
     for( int i = 0; i < n_; ++i ) acc_ += op_( v1_[i], v2_[i] );
     return acc_;
 }
+
+template< typename _FTYPE_v_ >
+status_t roots( const _FTYPE_v_* co_, int n_, _FTYPE_v_* rr_, _FTYPE_v_* ri_ ) {
+    _FTYPE_v_ A[ n_ ][ n_ ]; memset( A, 0x0, n_*n_*sizeof( _FTYPE_v_ ) );
+
+    for( int i = 0x0; i < n_; ++i ) {
+        A[ 0x0 ][ i ] = -co_[ i+1 ] / co_[ 0x0 ];
+        if( i != n_-1 ) A[ i+1 ][ i ] = _FTYPE_v_{1};
+    }
+
+    int info;   
+    if constexpr( std::is_same_v< float, _FTYPE_v_ > ) {
+        info = LAPACKE_sgeev( LAPACK_ROW_MAJOR, 'N', 'N', n_, (float*)A, n_, rr_, ri_, nullptr, 1, nullptr, 1 );
+    } else if constexpr( std::is_same_v< double, _FTYPE_v_ > ) {
+        info = LAPACKE_dgeev( LAPACK_ROW_MAJOR, 'N', 'N', n_, (double*)A, n_, rr_, ri_, nullptr, 1, nullptr, 1 );
+    }
+    A113_ASSERT_OR( info == 0x0 ) return A113_ERR_EXCOMCALL;
+    return A113_OK;
+}   
 
 }
 
@@ -38,25 +68,28 @@ std::vector< _FTYPE_v_ > linspace_s( _FTYPE_v_ s_, _FTYPE_v_ low_, _FTYPE_v_ upp
     return span;
 }
 
+template< typename _FTYPE_v_ >
+std::vector< std::complex< _FTYPE_v_ > > roots( const std::vector< _FTYPE_v_ >& co_ ) {
+    const int n = (int)co_.size() - 1;
+    _FTYPE_v_ rr[ n ], ri[ n ];
+    
+    A113_ASSERT_OR( A113_OK == mdn_0::roots< _FTYPE_v_ >( co_.data(), n, rr, ri ) ) return {};
+
+    std::vector< std::complex< _FTYPE_v_ > > res; res.reserve( n );
+    for( int i = 0x0; i < n; ++i ) res.emplace_back( rr[ i ], ri[ i ] );
+    return res;
+}
+
+}
+
+namespace a113::mdn_2 {
+
 template< typename _FTYPE_ = double > struct srf_grid_t {
 public:
     using apply_op_t = std::function< _FTYPE_( _FTYPE_* ) >;
 
 public:
     srf_grid_t( void ) = default;
-
-    // srf_grid_t( 
-    //     int xn_, _FTYPE_ xlow_, _FTYPE_ xupp_,
-    //     int yn_, _FTYPE_ ylow_, _FTYPE_ yupp_
-    // ) {
-    //     this->span_n( xn_, xlow_, xupp_, yn_, ylow_, yupp_ );
-    // }
-    // srf_grid_t( 
-    //     _FTYPE_ xs_, _FTYPE_ xlow_, _FTYPE_ xupp_,
-    //     _FTYPE_ ys_, _FTYPE_ ylow_, _FTYPE_ yupp_
-    // ) {
-    //     this->span_s( xs_, xlow_, xupp_, ys_, ylow_, yupp_ );
-    // }
 
 public:
     std::vector< std::vector< _FTYPE_ > >   _spans   = {};
@@ -79,12 +112,12 @@ public:
     }
 
 public:
-    template< int _D_ > srf_grid_t& span_n( 
-        std::tuple< int, _FTYPE_, _FTYPE_ > spans_[ _D_ ] 
+    srf_grid_t& span_n( 
+        const std::vector< std::tuple< int, _FTYPE_, _FTYPE_ > >& spans_
     ) {
-        _spans.assign( _D_, {} );
-        for( int d = 0x0; d < _D_; ++d ) {
-            _spans[d] = linspace_n( 
+        _spans.assign( spans_.size(), {} );
+        for( int d = 0x0; d < spans_.size(); ++d ) {
+            _spans[d] = mdn_1::linspace_n( 
                 std::get< 0 >( spans_[d] ), std::get< 1 >( spans_[d] ), std::get< 2 >( spans_[d] ) 
             );
         }
@@ -92,12 +125,12 @@ public:
         return *this;
     }
 
-    template< int _D_ > srf_grid_t& span_s( 
-        std::tuple< _FTYPE_, _FTYPE_, _FTYPE_ > spans_[ _D_ ] 
+    srf_grid_t& span_s( 
+        const std::vector< std::tuple< _FTYPE_, _FTYPE_, _FTYPE_ > >& spans_
     ) {
-        _spans.assign( _D_, {} );
-        for( int d = 0x0; d < _D_; ++d ) {
-            _spans[d] = linspace_s( 
+        _spans.assign( spans_.size(), {} );
+        for( int d = 0x0; d < spans_.size(); ++d ) {
+            _spans[d] = mdn_1::linspace_s( 
                 std::get< 0 >( spans_[d] ), std::get< 1 >( spans_[d] ), std::get< 2 >( spans_[d] ) 
             );
         }
@@ -145,24 +178,6 @@ public:
         return *this;
     } 
 
-    /*srf_grid_t& apply_spwn( int th_count_, apply_op_t op_ ) {
-        const int y_count = yn;
-        const int y_step  = (int)( y_count / th_count_ );
-        int       y_crt   = 0;
-
-        std::thread ths[ th_count_ ];
-        for( auto& th : ths ) {
-            th = std::thread( 
-                &srf_grid_t< _FTYPE_ >::_apply_for_y, this, 
-                op_, y_crt, std::min( y_count, y_crt + y_step ),
-                nullptr, nullptr
-            );
-            y_crt += y_step;
-        }
-        for( auto& th : ths ) if( th.joinable() ) th.join();
-        return *this;
-    }*/
-
 public:
     _FTYPE_ MSE_with( const srf_grid_t& other_ ) const {
         const int N = this->count();
@@ -188,6 +203,8 @@ public:
         for( int y = 0x0; y < yn-1; ++y ) {
             for( int x = 0x0; x < xn-1; ++x ) {
                 vbo.push_back( x_span[x] ); vbo.push_back( y_span[y] ); vbo.push_back( _field[z++] );
+
+                spdlog::info( "{} - {} = {}",  x_span[x], y_span[y], _field[z-1] );
                 
                 unsigned int 
                 base_ebo_idx = y * xn + x + 1; ebo.push_back( base_ebo_idx );

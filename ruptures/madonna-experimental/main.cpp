@@ -4,8 +4,6 @@
 
 #include <a113/osp/madonna.hpp>
 
-#include <lapacke.h>
-
 using namespace std; using namespace a113;
 
 static clkwrk::Immersive Imm;
@@ -104,33 +102,21 @@ struct _model_t {
 static imm::lens_t G_lens;
 
 status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
-    static constexpr float STEP_SZ = 0.09f;
-    static mdn_1::srf_grid_t< float > grid_f;
-    static mdn_1::srf_grid_t< float > grid_g; 
+    static constexpr float STEP_SZ = 0.5f;
+    static mdn_2::srf_grid_t< float > grid_f;
 
     static float MSE = 0.0;
 
     static auto _do_once_1 = [ & ] () -> char {
-        grid_f.span_s< 2 >( (std::tuple< float, float, float >[]){ {STEP_SZ, -10.0f, 10.0f}, {STEP_SZ, -10.0f, 10.0f} } );
-        grid_g.span_s< 2 >( (std::tuple< float, float, float >[]){ {STEP_SZ, -2.0f, 2.0f}, {STEP_SZ, -3.0f, 3.0f} } );
-        grid_f.apply( [] ( float* x ) -> float {
-            float sum = 0.0f;
-            for( float a = -4.0f; a <= 4.0f; a += 8.0f ) {
-                const float b = -pow( pow(x[0]+a,2) + pow(x[1]+a,2), 2 );
-                const float c = exp( b / 1000.0f );
-                const float d = 0.1f * exp( b );
-
-                sum += c + d;
-            }
-            return pow( sum, 3 );
-        } );
-
-        grid_g.apply( [] ( float* x ) -> float {
-            return 0.09276*pow( x[0], 4 ) - 0.4881*pow( x[0], 2 ) + 0.08078*pow( x[1], 4 ) - 0.7813*pow( x[1], 2 ) + 1.414;
+        grid_f
+        .span_s( { {STEP_SZ, -5.0f, 5.0f}, {STEP_SZ, -5.0f, 5.0f} } )
+        .apply( [] ( float* x ) -> float {
+            const float x1 = x[0x0];
+            const float x2 = x[0x1];
+            const float r  = x1*x1 - x2*x2 + 8*x1*x2 - pow(x2,4) + 1;
+            return r;
         } );
       
-        MSE = grid_f.MSE_with( grid_g );
-
         auto [ vbo, ebo ] = grid_f.gen_VBO_and_EBO(); G_model.count = ebo.size();
 
         glBindVertexArray(G_model.VAO);
@@ -149,7 +135,7 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
         return 0x0;
     }();
 
-    const glm::mat4 PV = glm::perspective( (float)M_PI/3, 1.0f, 0.1f, 100.0f ) * G_lens.view();
+    const glm::mat4 PV = glm::perspective( (float)M_PI/3, 1.0f, 0.1f, 1000.0f ) * G_lens.view();
 
     Imm.cluster().push_render_target( &G_model.ren_targ );
     glClearColor( 0.1f, 0.1f, 0.1f, 1.0f );
@@ -179,9 +165,11 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
 
     ImPlot::PushColormap( ImPlotColormap_Viridis );
     if( ImPlot::BeginPlot( "f(x,y)", {680,680}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {
+        ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_Invert );
+        
         ImPlot::PlotHeatmap(
             "##hm_1", grid_f.raw(), grid_f.n_of(1), grid_f.n_of(0),
-            0, 0, nullptr, {-10,-10}, {10,10},
+            0, 0, nullptr, {-5,-5}, {5,5},
             ImPlotHeatmapFlags_None
         );
         ImPlot::EndPlot();
@@ -193,16 +181,6 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
         grid_f.max(),
         ImVec2(60, 200)
     );
-    // ImGui::SameLine();
-    // if( ImPlot::BeginPlot( "g(x,y)", {680,680}, ImPlotFlags_Equal ) ) {
-    //     ImPlot::PlotHeatmap(
-    //         "##hm_2", grid_g.raw(), grid_g.n_of(1), grid_g.n_of(0),
-    //         0, 0, nullptr, {-2,-3}, {2,3},
-    //         ImPlotHeatmapFlags_None
-    //     );
-
-    //     ImPlot::EndPlot();
-    // }
     ImPlot::PopColormap();
 
     ImGui::SameLine();
@@ -226,7 +204,7 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
             l_y = y;
         }
 
-        G_lens.pitch_dg( ( y - l_y ) / 12.0 );
+        G_lens.pitch_dl( ( y - l_y ) / 12.0 );
         G_lens.yaw_dg( ( x - l_x ) / 12.0 );
         l_x = x; l_y = y;
     l_end:
@@ -251,7 +229,7 @@ int main( int argc, char* argv[] ) {
             ImGui::StyleColorsClassic();
 
             G_model.init();
-            G_lens = glm::vec3{ 0, 0, 16 };
+            G_lens = glm::vec3{ 0, 0, 40 };
             G_lens >= glm::vec3{ 0, 0, 0 };
             G_lens ^= glm::vec3{ 0, 1, 0 };
 

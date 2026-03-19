@@ -17,4 +17,5 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #include <a113/osp/render3.hpp>
 #include <a113/osp/sys_interface.hpp>
 #include <a113/osp/tempo.hpp>
+#include <a113/osp/text_utils.hpp>
 

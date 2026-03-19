@@ -50,7 +50,7 @@ public:
      * @details (1): --some-opt (2): --some-opt-w-arg 69 (3): -s (4): -S 69
      *          An option that does not start with neither '-' or '--', is considered the nth option (using fast index).
      */
-    struct cmd_opt_t {
+    struct opt_t {
         enum Type_ {
             Type_none,
             Type_text,
@@ -67,38 +67,37 @@ public:
      * @brief Structure passed to the user parse callback.
      * @details Usage is intended to be as close as possible to getopt_long().
      */
-    struct opts_lens_t {
+    struct tool_t {
         _parse_ctx_t*   _ctx   = nullptr;
-        int             _tid   = 0x1;
         int             _fid   = 0x0;
 
         std::tuple< char, void* > get( void );
     };
 
-    using cmd_fnc_t = std::function< status_t( opts_lens_t& ) >;
+    using cmd_fnc_t = std::function< status_t( tool_t& ) >;
 
     /**
      * @brief Command definition: name, options, callback, etc.
      */
     struct cmd_t {
-        std::string                text   = {};
-        std::vector< cmd_opt_t >   opts   = {};
-        cmd_fnc_t                  fnc    = nullptr;
+        std::string            text   = {};
+        std::vector< opt_t >   opts   = {};
+        cmd_fnc_t              fnc    = nullptr;
 
-        const cmd_opt_t* opt_by_short( char short_ ) const {
-            auto itr = std::ranges::find_if( opts, [ short_ ] ( const cmd_opt_t& opt_ ) -> bool {
+        const opt_t* opt_by_short( char short_ ) const {
+            auto itr = std::ranges::find_if( opts, [ short_ ] ( const opt_t& opt_ ) -> bool {
                 return opt_.sh0rt == short_; 
             } );
             return itr != opts.end() ? &*itr : nullptr;
         }
-        const cmd_opt_t* opt_by_long( const std::string& long_ ) const {
-            auto itr = std::ranges::find_if( opts, [ long_ ] ( const cmd_opt_t& opt_ ) -> bool {
+        const opt_t* opt_by_long( const std::string& long_ ) const {
+            auto itr = std::ranges::find_if( opts, [ long_ ] ( const opt_t& opt_ ) -> bool {
                 return opt_.l0ng == long_; 
             } );
             return itr != opts.end() ? &*itr : nullptr;
         }
-        const cmd_opt_t* opt_by_fast( int fid_ ) const {
-            auto itr = std::ranges::find_if( opts, [ fid_ ] ( const cmd_opt_t& opt_ ) -> bool {
+        const opt_t* opt_by_fast( int fid_ ) const {
+            auto itr = std::ranges::find_if( opts, [ fid_ ] ( const opt_t& opt_ ) -> bool {
                 return opt_.fast_id == fid_; 
             } );
             return itr != opts.end() ? &*itr : nullptr;
@@ -208,12 +207,12 @@ _A113_PROTECTED:
         }
 
         ctx_->cmd = &*itr;
-        opts_lens_t opts_lens{
-            ._ctx = ctx_,
-            ._tid = 0x1
+        ctx_->cid = 0x1;
+        tool_t tool{
+            ._ctx = ctx_
         };
 
-        A113_ASSERT_OR( itr->fnc( opts_lens ) == A113_OK ) {
+        A113_ASSERT_OR( itr->fnc( tool ) == A113_OK ) {
             *ctx_->out += "Failed to execute command."; 
             return A113_ERR_USERCALL;
         }
@@ -244,18 +243,40 @@ public:
 
 };
 
-std::tuple< char, void* > Fastcli::opts_lens_t::get( void ) {
-    const cmd_opt_t* opt = nullptr;
+std::tuple< char, void* > Fastcli::tool_t::get( void ) {
+#define _RET_DONE return { 0x0, nullptr }
+#define _RET_ERR return { 0x1, nullptr }
 
-    if( _ctx->toks[ _tid ].starts_with( "--" ) ) {
-        opt = _ctx->cmd->opt_by_long( _ctx->toks[ _tid ].substr( 0x2 ) );
-    } else if( _ctx->toks[ _tid ][ 0x0 ] == '-' ) {
-        opt = _ctx->cmd->opt_by_short( _ctx->toks[ _tid ][ 0x1 ] );
+    const opt_t* opt = nullptr;
+
+    A113_ASSERT_OR( _ctx->cid < _ctx->toks.size() ) _RET_DONE;
+
+    const auto& crt_tok = _ctx->toks[ _ctx->cid ];
+    if( crt_tok.starts_with( "--" ) ) {
+        opt = _ctx->cmd->opt_by_long( crt_tok.substr( 0x2 ) );
+    } else if( crt_tok[ 0x0 ] == '-' ) {
+        opt = _ctx->cmd->opt_by_short( crt_tok[ 0x1 ] );
     } else {
         opt = _ctx->cmd->opt_by_fast( _fid++ );
+        A113_ASSERT_OR( opt == nullptr ) {
+            *_ctx->out += std::format( "Cannot resolve token \"{}\".", crt_tok );
+            _RET_ERR;
+        }
     }
 
-    A113_ASSERT
+    A113_ASSERT_OR( opt == nullptr ) {
+        *_ctx->out += std::format( "Unknown option \"{}\".", crt_tok );
+        _RET_ERR;
+    }
+    ++_ctx->cid;
+    if( opt->type != opt_t::Type_none ) A113_ASSERT_OR( _ctx->cid < _ctx->toks.size() ) {
+        *_ctx->out += std::format( "Missing argument for option \"{}\".", crt_tok );
+        _RET_ERR;
+    }
+
+    const auto& arg = _ctx->toks[ ]
+
+    ++_ctx->cid;
 }
 
 }

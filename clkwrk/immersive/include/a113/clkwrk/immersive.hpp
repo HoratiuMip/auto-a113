@@ -56,18 +56,6 @@ _A113_PROTECTED:
     std::atomic_bool       _is_running   = false;
 
 public:
-    // void Wait_init_complete( void ) {
-    //     init_complete.wait( false, std::memory_order_acquire );
-    //     glfwMakeContextCurrent( render.handle() );
-    // }
-
-    // void Release_init_hold( void ) {
-    //     glfwMakeContextCurrent( nullptr );
-    //     init_hold.store( false, std::memory_order_release );
-    //     init_hold.notify_one();
-    // }
-
-public:
     A113_inline imm::Cluster& cluster( void ) {
         return *_cluster;
     }
@@ -101,7 +89,7 @@ public:
             prev_glfw_err_str = desc_;
             A113_LOGE_IMM( "GLFW error [{}] occured: \"{}\".", err_, prev_glfw_err_str );
         } );
-    
+
         glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );
         glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 1 );
         glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
@@ -156,25 +144,12 @@ public:
         } else {
             A113_LOGI_IMM( "No initialization complete callback found." );
         }
-        //if( init ) if( init( params.arg ) != 0 ) goto l_end;
-
-        // glfwMakeContextCurrent( nullptr );
-        // init_complete.store( true, std::memory_order_release);
-        // init_complete.notify_all();
-
-        // init_hold.wait( true, std::memory_order_acquire );
-        // glfwMakeContextCurrent( render.handle() );
         
         A113_LOGI_IMM( "Immersive clockwork initialization complete. Launching the loop." );
 
         _is_running.store( true, std::memory_order_release );
         while( _is_running.load( std::memory_order_relaxed ) && !glfwWindowShouldClose( window ) ) {
             glfwPollEvents();
-
-            // if( glfwGetWindowAttrib( render.handle(), GLFW_ICONIFIED ) != 0 ) {
-            //     ImGui_ImplGlfw_Sleep( 10 );
-            //     continue;
-            // }
 
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplGlfw_NewFrame();
@@ -212,7 +187,6 @@ public:
         A113_LOGI_IMM( "The immersive clockwork has been shut down completely." );
         return A113_OK;
     }
-
 };
 
 }
