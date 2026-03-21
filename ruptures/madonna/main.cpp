@@ -15,10 +15,8 @@ int main( int argc, char* argv[] ) {
                 { .sh0rt = 'v', .l0ng = "version" }
             },
             .fnc = [] ( auto& stencil_ ) -> status_t {
-                while( true ) {
-                    auto [ opt, arg ] = stencil_.next();
+                char opt; while( opt = stencil_.next() ) {
                     switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
-
                         case 'v': {
                             spdlog::info( "vasd" );
                         break; }
@@ -27,19 +25,23 @@ int main( int argc, char* argv[] ) {
                 return A113_OK;
             }
         }, {
-            .text = "echo",
+            .text = "roots",
             .opts = {
-                { .sh0rt = 'e', .arg = Fastcli::opt_t::Arg_text, .fast_id = 0x0 }
+                { .sh0rt = 'c', .l0ng = "coeffs", .arg = Fastcli::Arg_f64, .fast_id = 0x0, .argc = Fastcli::Argc_multi_compact }
             },
             .fnc = [] ( auto& stencil_ ) -> status_t {
-                while( true ) {
-                    auto [ opt, arg ] = stencil_.next();
-                    switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                std::vector< double > coeffs;
 
-                        case 'e': {
-                            spdlog::info( "{}", *(string*)arg );
+                char opt;  while( opt = stencil_.next() ) {
+                    switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                        case 'c': {
+                            coeffs = std::move( stencil_.arg_f64v() );
                         break; }
                     }
+                }
+        
+                for( auto& root : mdn_1::roots( coeffs ) ) {
+                    std::cout << root << '\n';
                 }
                 return A113_OK;
             }
