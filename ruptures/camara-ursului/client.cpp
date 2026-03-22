@@ -69,21 +69,52 @@ struct Client {
             }, {
                 .text = "register",
                 .opts = {
-                    { .sh0rt = 'n', .l0ng = "name", .arg = text::Fastcli::Arg_text }
+                    { .sh0rt = 'n', .l0ng = "name", .arg = text::Fastcli::Arg_text, .fast_id = 0x0 }
                 },
                 .fnc = [ this ] ( auto& stencil_ ) -> auto {
-                    const char*   name   = nullptr;
+                    nlohmann::json req{
+                        { "verb", "register" }
+                    };
 
                     char opt; while( opt = stencil_.next() ) {
                         switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
-                            case 'n': name = stencil_.arg_text().c_str(); break;
+                            case 'n': req[ "name" ] = stencil_.arg_text().c_str(); break;
                         }
                     }
 
-                    nlohmann::json req{
-                        { "verb", "register" },
-                        { "name", name }
+                    nlohmann::json resp;
+                    CU_ASSERT_OR( A113_OK == CU_request( _server, req.dump(), &resp ) ) {
+                        stencil_ += "Request error.";
+                        return A113_ERR_FLOW;
                     };
+                    
+                    auto token = resp.find( "token" );
+                    CU_ASSERT_OR( token != resp.end() ) {
+                        stencil_ += "Response packet with no token.";
+                        return A113_ERR_FLOW;
+                    }
+                    _token = *token;
+
+                    stencil_ += resp.dump(4);
+                    return A113_OK;
+                }
+            }, {
+                .text = "snoop",
+                .opts = {
+                    { .sh0rt = 't', .l0ng = "tag", .arg = text::Fastcli::Arg_text, .fast_id = 0x0 }
+                },
+                .fnc = [ this ] ( auto& stencil_ ) -> auto {
+                    nlohmann::json req{
+                        { "verb", "snoop" },
+                        { "token", _token }
+                    };
+
+                    char opt; while( opt = stencil_.next() ) {
+                        switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                            case 't': req[ "tag" ] = stencil_.arg_text().c_str(); break;
+                        }
+                    }
+
                     nlohmann::json resp;
                     CU_ASSERT_OR( A113_OK == CU_request( _server, req.dump(), &resp ) ) {
                         stencil_ += "Request error.";
@@ -94,23 +125,22 @@ struct Client {
                     return A113_OK;
                 }
             }, {
-                .text = "snoop",
+                .text = "ur",
                 .opts = {
-                    { .sh0rt = 'n', .l0ng = "name", .arg = text::Fastcli::Arg_text }
+                    { .sh0rt = 't', .l0ng = "text", .arg = text::Fastcli::Arg_text, .fast_id = 0x0 }
                 },
                 .fnc = [ this ] ( auto& stencil_ ) -> auto {
-                    const char*   name   = nullptr;
+                    nlohmann::json req{
+                        { "verb", "ur" },
+                        { "token", _token }
+                    };
 
                     char opt; while( opt = stencil_.next() ) {
                         switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
-                            case 'n': name = stencil_.arg_text().c_str(); break;
+                            case 't': req[ "text" ] = stencil_.arg_text().c_str(); break;
                         }
                     }
 
-                    nlohmann::json req{
-                        { "verb", "snoop" },
-                        { "name", name }
-                    };
                     nlohmann::json resp;
                     CU_ASSERT_OR( A113_OK == CU_request( _server, req.dump(), &resp ) ) {
                         stencil_ += "Request error.";

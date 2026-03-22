@@ -24,7 +24,7 @@
 #define   CU_DEFAULT_CLIENT_OUTBOUND_TIMEOUT_S   15
 
 #define   CU_MAX_PACKET_SIZE                     1024
-#define   SERVER_DROP_UNSUB_AFTER_FAIL_N      3
+#define   CU_SERVER_DROP_CLIENT_AFTER_FAIL_N     3
 
 // ======================= Utility =======================
 using namespace std; using namespace a113;

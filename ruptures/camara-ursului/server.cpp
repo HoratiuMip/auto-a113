@@ -10,6 +10,10 @@ struct Server {
     struct token_t {
         string   value   = {};
 
+        bool operator == ( const string& str_ ) {
+            return value == str_;
+        }
+
         status_t populate( const client_t& client_ ); 
     };
 
@@ -25,7 +29,7 @@ struct Server {
     };
 
     struct pantry_t {
-        string                     name           = {};
+        string                     tag            = {};
         thread                     main_th        = {};
         list< HVec< client_t > >   clients_list   = {};
         shared_mutex               clients_mtx    = {};
@@ -79,20 +83,20 @@ struct Server {
         if( pan ) return pan;
         
         pan = HVec< pantry_t >::make();
-        pan->name = name_;
+        pan->tag = name_;
 
         thread( &Server::_pantry_main, this, pan ).detach();
         return pan;
     }
 
-    status_t _create_pantry( string name_ ) { 
+    status_t _create_pantry( string tag_ ) { 
         lock_guard lck{ _pantrys_mtx };
 
-        auto& pan = _pantrys_map[ name_ ];
+        auto& pan = _pantrys_map[ tag_ ];
         CU_ASSERT_OR( pan == nullptr ) return A113_ERR_WOULD_OVRWR;
 
         pan = HVec< pantry_t >::make();
-        pan->name = move( name_ );
+        pan->tag = move( tag_ );
     
         thread( &Server::_pantry_main, this, pan ).detach();
         return A113_OK;
@@ -140,20 +144,22 @@ struct Server {
                             unsub.token->populate( unsub );
 
                             CU_ASSERT_OR( A113_OK == CU_respond( unsub.sock, nlohmann::json{
-                                { "msg", "You have successfully registered on the server." },
+                                { "msg", std::format( "Welcome to Camara Ursului, {}!", unsub.name ) },
                                 { "token", unsub.token->value }
-                            }.dump() ) ) goto l_terminate_unsub;
+                            }.dump() ) ) goto l_unsub_op_fail;
                         break; }
 
                         case text::hash( "snoop" ): {
-                            CU_ASSERT_OR( unsub.token ) throw runtime_error{ "verb: snoop: no token" };
+                            CU_ASSERT_OR( unsub.token ) throw runtime_error{ "verb: snoop: unregistered token" };
+                            string token = move( json[ "token" ].get_ref< string& >() );
+                            CU_ASSERT_OR( *unsub.token == token ) throw runtime_error( "verb: snoop: invalid token" );
 
-                            string pan_name = move( json[ "name" ].get_ref< string& >() );
-                            CU_ASSERT_OR( not pan_name.empty() ) throw runtime_error{ "verb: snoop: empty pantry name" };
+                            string pan_tag = move( json[ "tag" ].get_ref< string& >() );
+                            CU_ASSERT_OR( not pan_tag.empty() ) throw runtime_error{ "verb: snoop: empty pantry tag" };
 
-                            auto pan = _create_or_get_pantry( pan_name );
+                            auto pan = _create_or_get_pantry( pan_tag );
                             CU_ASSERT_OR( A113_OK == CU_respond( unsub.sock, nlohmann::json{
-                                { "msg", "Snooping pantry." },
+                                { "msg", std::format( "Snooping pantry #{}.", pan_tag ) },
                             }.dump() ) ) goto l_terminate_unsub;
                         {
                             lock_guard lck{ pan->clients_mtx };
@@ -163,17 +169,19 @@ struct Server {
                         break; }
                     }
                 } catch( const nlohmann::json::parse_error& err_ ) {
+                    spdlog::warn( "{}:{} > {}", unsub.sock.addr_c_str(), unsub.sock.port(), err_.what() );
                     goto l_terminate_unsub;
                 } catch( const runtime_error& err_ ) {
                     spdlog::warn( "{}:{} > {}", unsub.sock.addr_c_str(), unsub.sock.port(), err_.what() );
                     goto l_terminate_unsub;
                 } catch( ... ) {
+                    spdlog::warn( "{}:{} > UNKNOWN ERROR", unsub.sock.addr_c_str(), unsub.sock.port() );
                     goto l_terminate_unsub;
                 }
                 goto l_itr_inc; 
 
             l_unsub_op_fail:
-                if( not ++unsub.failed_ops >= SERVER_DROP_UNSUB_AFTER_FAIL_N ) goto l_itr_inc;
+                if( not ++unsub.failed_ops >= CU_SERVER_DROP_CLIENT_AFTER_FAIL_N ) goto l_itr_inc;
             l_terminate_unsub:
                 _terminate_track( unsub.track );
             l_erase_unsub:
@@ -191,7 +199,7 @@ struct Server {
     void _pantry_main( HVec< pantry_t > pan_ ) {
         pantry_t& pan = *pan_;
 
-        while( true ) {
+        for(; _running.load( std::memory_order_relaxed );) {
             time_t t_now = time( nullptr );
 
             shared_lock lck{ pan.clients_mtx };
@@ -202,11 +210,73 @@ struct Server {
                 pan.last_idle = 0x0;
             }
 
+            ranges::remove_if( pan.clients_list, [ this, &pan ] ( HVec< client_t >& client_ ) -> bool {
+                client_t& client = *client_;
+
+                char buffer[ CU_MAX_PACKET_SIZE ];
+                int  byte_count      = 0;
+                int  bytes_available = 0;
+                
+                if( A113_OK == client.sock.holding_rx( &bytes_available ) ) {
+                    if( bytes_available <= 0 ) goto l_keep_client;
+                } else goto l_client_op_fail;
+
+                CU_ASSERT_OR( A113_OK == client.sock.read( {
+                    .dst_ptr    = buffer,
+                    .dst_n      = CU_MAX_PACKET_SIZE,
+                    .byte_count = &byte_count,
+                    .req_all    = false,
+                    .req_time   = true
+                } ) && byte_count > 0x0 ) goto l_client_op_fail;
+
+                try {
+                    auto json = nlohmann::json::parse( buffer, buffer + byte_count );
+                    auto verb = json.find( "verb" );
+                    CU_ASSERT_OR( verb != json.end() && verb->is_string() ) goto l_terminate_client;
+
+                    switch( text::hash( *verb ) ) {
+                        case text::hash( "ur" ): {
+                            CU_ASSERT_OR( json.contains( "text" ) ) goto l_terminate_client;
+                            
+                            string json_dump = nlohmann::json{
+                                { "verb", "ur_cast" },
+                                { "fox", client.name },
+                                { "text", json[ "text" ] }
+                            }.dump();
+
+                            for( auto& other_client : pan.clients_list ) {
+                                CU_ASSERT_OR( A113_OK == CU_respond( other_client->sock, json_dump ) ) 
+                                    ++other_client->failed_ops;
+                            }
+                        break; }
+                    }
+                } catch( const nlohmann::json::parse_error& err_ ) {
+                    spdlog::warn( "{}:{} > {}", client.sock.addr_c_str(), client.sock.port(), err_.what() );
+                    goto l_terminate_client;
+                } catch( const runtime_error& err_ ) {
+                    spdlog::warn( "{}:{} > {}", client.sock.addr_c_str(), client.sock.port(), err_.what() );
+                    goto l_terminate_client;
+                } catch( ... ) {
+                    spdlog::warn( "{}:{} > UNKNOWN ERROR", client.sock.addr_c_str(), client.sock.port() );
+                    goto l_terminate_client;
+                }
+
+                goto l_keep_client;
+
+            l_client_op_fail:
+                if( not ++client.failed_ops >= CU_SERVER_DROP_CLIENT_AFTER_FAIL_N ) goto l_keep_client;
+            l_terminate_client:
+                _terminate_track( client.track );
+                return true;
+            l_keep_client:
+                return false;
+            } );
+
             this_thread::sleep_for( chrono::milliseconds( 100 ) );
         }
         
         lock_guard lck{ _pantrys_mtx };
-        _pantrys_map.erase( pan.name );
+        _pantrys_map.erase( pan.tag );
     }
 
     int main( int argc_, char* argv_[] ) {
@@ -313,11 +383,11 @@ struct Server {
 
                             stencil_ += "===== Pantries =====\n";
                     
-                            for( auto& [ name, pantry ] : _pantrys_map ) {
+                            for( auto& [ tag, pantry ] : _pantrys_map ) {
                                 int snoop_count = pantry->clients_list.size();
 
-                                stencil_ += format( "{}\tSnoopers: {}\n",
-                                    name, snoop_count
+                                stencil_ += format( "#{}\tSnoopers: {}\n",
+                                    tag, snoop_count
                                 );
                             }
                         break; }
