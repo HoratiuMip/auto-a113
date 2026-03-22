@@ -12,6 +12,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <list>
