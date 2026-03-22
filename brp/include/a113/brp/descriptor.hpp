@@ -77,6 +77,7 @@ typedef   int   status_t;
 #define A113_ERR_NOT_IMPL     -0xB
 #define A113_ERR_BUSY         -0xC
 #define A113_ERR_NOT_FOUND    -0xD
+#define A113_ERR_ENGINECALL   -0xE
 
 inline static const char* const status_msgs[] = {
     "OK",
@@ -92,7 +93,8 @@ inline static const char* const status_msgs[] = {
     "FLOW",
     "NOT_IMPL",
     "BUSY",
-    "NOT_FOUND"
+    "NOT_FOUND",
+    "ENGINECALL"
 };
 #define A113_STATUS_MSG( s ) (a113::status_msgs[-(s)])
 

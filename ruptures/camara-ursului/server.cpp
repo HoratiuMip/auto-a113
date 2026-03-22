@@ -1,117 +1,120 @@
-#include <a113/osp/IO_sockets.hpp>
 #include "common.hpp"
-using namespace std;
-using namespace a113;
 
 struct Server {
-// ======================= Fields =======================
-    atomic_bool   _running   = { false };
+// ======================= Consts =======================
 
-    struct unsubscribed_t {
-        io::IPv4_TCP_socket   client       = {};
+// ======================= Structures =======================
+    struct client_t;
+    struct room_t;
+
+    struct token_t {
+        string   value   = {};
+
+        status_t populate( const client_t& client_ ); 
+    };
+
+    struct client_t {
+        int                   track        = 0x0;
+        io::IPv4_TCP_socket   sock         = {};
+        HVec< token_t >       token        = nullptr;
+        string                name         = {};
+        HVec< room_t >        room         = nullptr;
         int                   failed_ops   = 0;
         time_t                born         = { time( nullptr ) };
+        time_t                last_xchg    = { time( nullptr ) };
     };
-    list< unsubscribed_t >   _unsubscribed_list   = {};
-    mutex                    _unsubscribed_mtx    = {};
-    thread                   _unsubscribed_th     = {};
 
-    struct chill_one_t {
-        io::IPv4_TCP_socket   client  = {};
-        string                name    = "_Unidentified"; 
+    struct pantry_t {
+        int                        track          = 0x0;
+        list< HVec< client_t > >   clients_list   = {};
+        shared_mutex               clients_mtx    = {};
+        time_t                     born           = { time( nullptr ) };
     };
-    struct room_t {
-        string                name         = "";
-        time_t                born         = { time( nullptr ) };
-        list< chill_one_t >   chill_list   = {}; 
-        mutex                 chill_mtx    = {}; 
-    };  
-    map< string, room_t >   _room_map   = {};
-    mutex                   _room_mtx   = {};
+
+// ======================= Fields =======================
+    atomic_bool                     _running       = { false };
+
+    atomic_int                      _track_id      = { 0x0 };
+    map< int, HVec< client_t > >    _track_map     = {};
+    shared_mutex                    _track_mtx     = {};
+
+    list< HVec< client_t > >        _unsubs_list   = {};
+    shared_mutex                    _unsubs_mtx    = {};
+    thread                          _unsubs_th     = {};
 
 // ======================= Utility =======================
-    string _next_request_arg( const char** req_, int* len_ ) {
-        const char* aux = strchr( *req_, REQ_SPLT_CHR );
-        if( nullptr == aux ) return "";
+    void _terminate_by_track_id( int track_id ) {
+        lock_guard lck{ _track_mtx };
 
-        int    arg_len = aux - *req_;
-        string ret{ *req_, arg_len };
+        auto itr = _track_map.find( track_id );
+        CU_ASSERT_OR( itr != _track_map.end() ) return;
 
-        *req_ += arg_len + 1;
-        *len_ -= arg_len + 1;
-
-        return ret;
-    }
-
-    inline status_t _respond( io::IPv4_TCP_socket& client_, const string& resp_ ) {
-        return client_.write( {
-            .src_ptr = const_cast< string& >( resp_ ).data(),
-            .src_n   = (int)resp_.length()
-        } );
+        itr->second->sock.disconnect();
+        _track_map.erase( itr );
     }
 
 // ======================= Mains =======================
-    void _process_unsubscribed_request( const char* req_, int len_, decltype(_unsubscribed_list)::iterator* u_itr_  ) {
-        string resp = "OK";
-
-        switch( *req_++ ) {
-            case OP_JOIN_ROOM: {
-                string room_name = _next_request_arg( &req_, &len_ ); 
-                if( room_name.empty() ) {
-                    resp = "ILL-FORMED"; break;
-                }
-                
-                room_t* room;
-            {
-                lock_guard lck{ _room_mtx };
-                room = &_room_map[ room_name ];
-            } {
-                lock_guard lck{ room->chill_mtx };
-                room->chill_list.emplace_back( move( (*u_itr_)->client ) );
-                *u_itr_ = _unsubscribed_list.erase( *u_itr_ );
-            }
-            break; }
-        }
-
-        this->_respond( (*u_itr_)->client, resp );
-    }
-
-    void _unsubscribed_main( void ) {
+    void _unsubs_main( void ) {
         for(; _running.load( memory_order_relaxed );) {
-            lock_guard lck{ _unsubscribed_mtx };
+            lock_guard lck{ _unsubs_mtx };
 
-            time_t t_now = time( nullptr );
-            for( auto u_itr = _unsubscribed_list.begin(); u_itr != _unsubscribed_list.end(); ) {
-                unsubscribed_t& unsub = *u_itr;
+            for( auto u_itr = _unsubs_list.begin(); u_itr != _unsubs_list.end(); ) {
+                time_t    t_now = time( nullptr );
+                client_t& unsub = **u_itr;
 
-                char buf[ MAX_PACKET_SIZE + 1 ] = { '\0' };
-                int  bc                         = 0x0;
-                int  rx_available               = -0x1;
+                char buffer[ CU_MAX_PACKET_SIZE ];
+                int  byte_count      = 0x0;
+                int  bytes_available = -0x1;
 
-                if( t_now - unsub.born >= DEFAULT_SERVER_UNSUBS_HOLD_TIME_S ) goto l_kill_unsub;
+                if( t_now - unsub.last_xchg >= CU_DEFAULT_SERVER_UNSUBS_HOLD_TIME_S ) goto l_kill_unsub;
 
-                if( A113_OK == unsub.client.holding_rx( &rx_available ) ) {
-                    if( rx_available <= 0 ) goto l_itr_inc;
+                if( A113_OK == unsub.sock.holding_rx( &bytes_available ) ) {
+                    if( bytes_available <= 0 ) goto l_itr_inc;
                 } else goto l_unsub_op_fail;
 
-                if( A113_OK == unsub.client.read( {
-                    .dst_ptr    = buf,
-                    .dst_n      = MAX_PACKET_SIZE,
-                    .byte_count = &bc,
+                CU_ASSERT_OR( A113_OK == unsub.sock.read( {
+                    .dst_ptr    = buffer,
+                    .dst_n      = CU_MAX_PACKET_SIZE,
+                    .byte_count = &byte_count,
                     .req_all    = false,
                     .req_time   = true
-                } ) && bc != 0x0 ) {
-                    buf[ bc ] = '\0';
-                    this->_process_unsubscribed_request( buf, bc, &u_itr );
-                    goto l_no_itr_inc;
-                } else goto l_unsub_op_fail;
+                } ) && byte_count > 0x0 ) goto l_unsub_op_fail;
+                
+                unsub.last_xchg = time( nullptr );
+                try {
+                    auto json = nlohmann::json::parse( buffer, buffer + byte_count );
+                    auto verb = json.find( "verb" );
+                    CU_ASSERT_OR( verb != json.end() && verb->is_string() ) goto l_kill_unsub;
 
+                    switch( text::hash( *verb ) ) {
+                        case text::hash( "register" ): {
+                            unsub.name = move( json[ "name" ].get_ref< string& >() );
+                            CU_ASSERT_OR( not unsub.name.empty() ) throw runtime_error{ "v: register: empty name" };
+
+                            unsub.token = HVec< token_t >::make();
+                            unsub.token->populate( unsub );
+
+                            CU_ASSERT_OR( A113_OK == CU_respond( unsub.sock, nlohmann::json{
+                                { "status_str", "OK" },
+                                { "msg", "You have successfully registered on the server." },
+                                { "token", unsub.token->value }
+                            }.dump() ) ) goto l_kill_unsub;
+                        break; }
+                    }
+                } catch( const nlohmann::json::parse_error& err_ ) {
+                    goto l_kill_unsub;
+                } catch( const runtime_error& err_ ) {
+                    spdlog::warn( "{}:{} > {}", unsub.sock.addr_c_str(), unsub.sock.port(), err_.what() );
+                    goto l_kill_unsub;
+                } catch( ... ) {
+                    goto l_kill_unsub;
+                }
                 goto l_itr_inc; 
 
             l_unsub_op_fail:
                 if( not ++unsub.failed_ops >= SERVER_DROP_UNSUB_AFTER_FAIL_N ) goto l_itr_inc;
             l_kill_unsub:
-                u_itr = _unsubscribed_list.erase( u_itr );
+                u_itr = _unsubs_list.erase( u_itr );
                 goto l_no_itr_inc;
             l_itr_inc:
                 ++u_itr;
@@ -125,61 +128,90 @@ struct Server {
     int main( int argc_, char* argv_[] ) {
         _running.store( true, memory_order_release );
         
-        _unsubscribed_th = thread( &Server::_unsubscribed_main, this );
+        _unsubs_th = thread( &Server::_unsubs_main, this );
 
         io::IPv4_TCP_socket server; server.bind( "0.0.0.0", DEFAULT_PORT ); 
         server.listen();
 
         for(; _running.load( memory_order_relaxed );) {
-            io::IPv4_TCP_socket client;
-            if( A113_OK == server.accept( &client, {
+            io::IPv4_TCP_socket client_sock;
+            if( A113_OK == server.accept( &client_sock, {
                 .timeouts = { .outbound_s = DEFAULT_SERVER_OUTBOUND_TIMEOUT_S, .inbound_s = DEFAULT_SERVER_INBOUND_TIMEOUT_S }
             } ) ) {
-                lock_guard lck{ _unsubscribed_mtx };
-                _unsubscribed_list.emplace_back( unsubscribed_t{
-                    .client = move( client )
-                } );
-            } else {
+                auto client = HVec< client_t >::make();
 
+                new (&client->sock) io::IPv4_TCP_socket{ move( client_sock ) };
+                client->track = _track_id.fetch_add( 0x1, std::memory_order_relaxed );
+            {
+                lock_guard lck{ _track_mtx };
+                _track_map[ client->track ] = client;
+            } 
+            {
+                lock_guard lck{ _unsubs_mtx };
+                _unsubs_list.emplace_back( move( client ) );
+            }
+            } else {
+                this_thread::sleep_for( chrono::milliseconds( 100 ) );
             }
         }
 
         return 0x0;
     }
 
-    string cli( const string& cmd_ ) {
-    #define NEXT (*tok++)
-        string ret   = "";
-        time_t t_now = time( nullptr );
+// ======================= Command line =======================
+    text::Fastcli   fastcli   = { 
+    {}, {
+        {
+            .text = "terminate",
+            .opts = {
+                { .sh0rt = 't', .l0ng = "track-id", .arg = text::Fastcli::Arg_i32 }
+            },
+            .fnc  = [ this ] ( auto& stencil_ ) -> auto {
+                optional< int > track_id = {};
 
-        vector< string > toks;
-        for( auto t : views::split( cmd_, ' ' ) ) toks.emplace_back( t.begin(), t.end() );
-        auto tok = toks.begin();
-
-        switch( hash_unsecure( NEXT ) ) {
-            case hash_unsecure( "--T-unsubs" ): {
-                ret += "Unsubscribed clients list:\n";
-                lock_guard lck{ _unsubscribed_mtx };
-
-                if( _unsubscribed_list.empty() ) {
-                    ret += "No unsubscribed clients.";
-                } else {
-                    int crt = 1;
-                    for( unsubscribed_t& unsub : _unsubscribed_list ) {
-                        ret += format( "{} {}:{} {}s\n", 
-                            crt, 
-                            unsub.client.addr_c_str(), unsub.client.port(), 
-                            DEFAULT_SERVER_UNSUBS_HOLD_TIME_S - ( t_now - unsub.born )
-                        );
-                        ++crt;
-                    }
+                char opt; while( opt = stencil_.next() ) { 
+                    switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                        case 't': track_id = stencil_.arg_i32(); break;
+                    } 
                 }
-            break; }
-        }
 
-        return ret;
-    }
+                if( track_id.has_value() ) {
+                    _terminate_by_track_id( track_id.value() );
+                }
+
+                return A113_OK;
+            }
+        }, {
+            .text = "list-unsubs",
+            .opts = {},
+            .fnc  = [ this ] ( auto& stencil_ ) -> auto {
+                shared_lock lck{ _unsubs_mtx };
+
+                stencil_ += "\n";
+                auto t_now = time( nullptr );
+
+                for( auto& unsub : _unsubs_list ) {
+                    auto token = unsub->token;
+
+                    stencil_ += format( "{}\tIp: {}:{}\tLease: {}s\tToken: {}\n",
+                        unsub->track, unsub->sock.addr_c_str(), unsub->sock.port(),
+                        CU_DEFAULT_SERVER_UNSUBS_HOLD_TIME_S - (t_now - unsub->last_xchg),
+                        token ? token->value : "NO_TOKEN"
+                    );
+                }
+                return A113_OK;
+            }
+        }
+    } };
+
 };
+
+status_t Server::token_t::populate( const Server::client_t& client_ ) {
+    value = format( "{}:{}/{}/{}", 
+        client_.sock.addr_c_str(), client_.sock.port(), time( nullptr ), client_.name
+    );
+    return A113_OK;
+}
 
 #include <iostream>
 int main( int argc, char* argv[] )  {
@@ -187,8 +219,12 @@ int main( int argc, char* argv[] )  {
 
     Server server; auto server_th = jthread( &Server::main, &server, argc, argv );
     for(;;) {
-        string cmd; getline( cin, cmd ); 
-        spdlog::info( "{}", server.cli( cmd ) );
+        string cmd, out; getline( cin, cmd ); 
+        CU_ASSERT_OR( A113_OK == server.fastcli( cmd, &out ) ) {
+            spdlog::error( "{}", out );
+        } else if( not out.empty() ) {
+            spdlog::info( "{}", out );
+        }
     }
 
     return 0x0;

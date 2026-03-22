@@ -112,6 +112,10 @@ message( STATUS "[A113] Adding the bedrock plate subdirectory." )
 add_subdirectory( "brp" )
 message( STATUS "[A113] Bedrock plate completed." )
 
+message( STATUS "[A113] Adding the green euglene plate subdirectory." )
+add_subdirectory( "gep" )
+message( STATUS "[A113] Green euglene plate completed." )
+
 if( A113_Opt_TargetPlate_uC )
     message( STATUS "[A113] Adding the micro-controller plate subdirectory." )
     add_subdirectory( "ucp" )
@@ -132,8 +136,5 @@ endforeach()
 foreach( rupture ${A113_MAKE_RUPTURES} )
     add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/ruptures/${rupture}" )
 endforeach()
-
-add_executable( "${PROJECT_NAME}-fasttest" fasttest.cpp )
-target_link_libraries( "${PROJECT_NAME}-fasttest" A113_OSp )
 
 message( STATUS "[A113] CMake script done." )

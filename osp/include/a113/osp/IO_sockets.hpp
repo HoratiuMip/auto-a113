@@ -64,8 +64,8 @@ _A113_PROTECTED:
     } _conn;
 
 public:
-    A113_inline const char* addr_c_str( void ) { return _conn.addr_str.buf; }
-    A113_inline ipv4_port_t port( void ) { return _conn.port; }
+    A113_inline const char* addr_c_str( void ) const { return _conn.addr_str.buf; }
+    A113_inline ipv4_port_t port( void ) const { return _conn.port; }
 
 public:
     status_t bind( ipv4_addr_t addr_, ipv4_port_t port_ );

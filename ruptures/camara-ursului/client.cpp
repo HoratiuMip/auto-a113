@@ -1,10 +1,8 @@
-#include <a113/osp/IO_sockets.hpp>
 #include "common.hpp"
-using namespace std;
-using namespace a113;
 
 struct Client {
     io::IPv4_TCP_socket   _server    = {};
+    std::string           _token     = {};
 
     atomic_bool           _running   = { false };
     thread                _rx_th     = {};
@@ -26,45 +24,78 @@ struct Client {
         }
     }
 
-    string cli( const string& cmd_ ) {
-    #define NEXT (*tok++)
-        string ret   = std::format( "{} completed.", cmd_ );
-        time_t t_now = time( nullptr );
+    text::Fastcli   fastcli   = {
+        {}, {
+            {
+                .text = "connect",
+                .opts = {
+                    { .sh0rt = 'a', .l0ng = "address", .arg = text::Fastcli::Arg_text, .fast_id = 0x0 },
+                    { .sh0rt = 'p', .l0ng = "port", .arg = text::Fastcli::Arg_i32, .fast_id = 0x1 },
+                    { .sh0rt = 't', .l0ng = "timeout-in", .arg = text::Fastcli::Arg_i32 },
+                    { .sh0rt = 'T', .l0ng = "timeout-out", .arg = text::Fastcli::Arg_i32 },
+                },
+                .fnc = [ this ] ( auto& stencil_ ) -> auto {
+                    const char*                   address = "127.0.0.1";
+                    io::ipv4_port_t               port    = 58008;
+                    io::IPv4_TCP_socket::config_t config  = {
+                        .timeouts = { .outbound_s = CU_DEFAULT_CLIENT_OUTBOUND_TIMEOUT_S, .inbound_s = CU_DEFAULT_CLIENT_INBOUND_TIMEOUT_S }
+                    };
 
-        vector< string > toks;
-        for( auto t : views::split( cmd_, ' ' ) ) toks.emplace_back( t.begin(), t.end() );
-        auto tok = toks.begin();
+                    char opt; while( opt = stencil_.next() ) {
+                        switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                            case 'a': address = stencil_.arg_text().c_str(); break;
+                            case 'p': port = (io::ipv4_port_t)stencil_.arg_i32(); break;
+                            case 't': config.timeouts.inbound_s = stencil_.arg_i32(); break;
+                            case 'T': config.timeouts.outbound_s = stencil_.arg_i32(); break;
+                        }
+                    }
 
-        switch( hash_unsecure( NEXT ) ) {
-            case hash_unsecure( "--connect" ): {
-                _server.bind( NEXT.c_str(), DEFAULT_PORT );
-                _server.connect( {} );
+                    CU_ASSERT_OR( A113_OK == _server.bind( address, port ) ) {
+                        stencil_ += "Failed to bind to the give address and port.";
+                        return A113_ERR_ENGINECALL;
+                    }
+                    CU_ASSERT_OR( A113_OK == _server.connect( config ) ) {
+                        stencil_ += "Failed to connect to the given address.";
+                        return A113_ERR_ENGINECALL;
+                    }
+                    return A113_OK;
+                }
+            }, {
+                .text = "disconnect",
+                .fnc = [ this ] ( auto& stencil_ ) -> auto {
+                    _server.disconnect();
+                    return A113_OK;
+                }
+            }, {
+                .text = "register",
+                .opts = {
+                    { .sh0rt = 'n', .l0ng = "name", .arg = text::Fastcli::Arg_text }
+                },
+                .fnc = [ this ] ( auto& stencil_ ) -> auto {
+                    const char*   name   = nullptr;
 
-                _running.store( true, memory_order_release );
-                _rx_th = thread( &Client::_rx_th, this );
-            break; }
+                    char opt; while( opt = stencil_.next() ) {
+                        switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                            case 'n': name = stencil_.arg_text().c_str(); break;
+                        }
+                    }
 
-            case hash_unsecure( "--disconnect" ): {
-                _server.disconnect();
-
-                _running.store( false, memory_order_release );
-                if( _rx_th.joinable() ) _rx_th.join();
-            break; }
-
-            case hash_unsecure( "--join-room" ): {
-                int  buf_sz = 1 + tok->length() + 1;
-                char buf[ buf_sz ]; strncpy( buf + 1, tok->c_str(), tok->length() );
-                buf[ 1 + tok->length() ] = REQ_SPLT_CHR;
-
-                _server.write( {
-                    .src_ptr = buf,
-                    .src_n   = buf_sz
-                } );
-            break; }
+                    nlohmann::json req{
+                        { "verb", "register" },
+                        { "name", name }
+                    };
+                    nlohmann::json resp;
+                    CU_ASSERT_OR( A113_OK == CU_request( _server, req.dump(), &resp ) ) {
+                        stencil_ += "Request error.";
+                        return A113_ERR_FLOW;
+                    };
+                    
+                    stencil_ += resp.dump(4);
+                    return A113_OK;
+                }
+            }
         }
-
-        return ret;
-    }
+    };
 };
 
 #include <iostream>
@@ -73,8 +104,12 @@ int main( int argc, char* argv[] )  {
 
     Client client; 
     for(;;) {
-        string cmd; getline( cin, cmd ); 
-        spdlog::info( "{}", client.cli( cmd ) );
+        string cmd, out; getline( cin, cmd ); 
+        CU_ASSERT_OR( A113_OK == client.fastcli( cmd, &out ) ) {
+            spdlog::error( "{}", out );
+        } else if( not out.empty() ) {
+            spdlog::info( "{}", out );
+        }
     }
 
     return 0x0;

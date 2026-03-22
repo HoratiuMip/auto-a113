@@ -10,7 +10,6 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #include <a113/osp/cache.hpp>
 #include <a113/osp/core.hpp>
 #include <a113/osp/dispenser.hpp>
-#include <a113/osp/fastcli.hpp>
 #include <a113/osp/hyper_net.hpp>
 #include <a113/osp/madonna.hpp>
 #include <a113/osp/osp.hpp>

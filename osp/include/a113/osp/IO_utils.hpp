@@ -7,7 +7,7 @@
  */
 
 #include <a113/osp/core.hpp>
-#include <a113/OSp/dispenser.hpp>
+#include <a113/osp/dispenser.hpp>
 
 namespace a113::io {
 

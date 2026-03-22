@@ -23,7 +23,7 @@ struct port_R_desc_t {
     int*    byte_count   = nullptr;
     bool    req_all      = false;
     bool    req_time     = false;
-    bool*   reset        = nullptr;
+    bool    log          = false;
 };
 struct port_W_desc_t {
     char*   src_ptr      = nullptr;
@@ -31,7 +31,7 @@ struct port_W_desc_t {
     int*    byte_count   = nullptr;
     bool    req_all      = true;
     bool    req_time     = true;
-    bool*   reset        = nullptr;
+    bool    log          = false;
 };
 
 class Port {

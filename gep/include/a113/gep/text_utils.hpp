@@ -6,7 +6,7 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <a113/osp/core.hpp>
+#include <a113/gep/core.hpp>
 
 namespace a113::text {
 
@@ -34,6 +34,15 @@ int lev_dist( std::string_view s_, std::string_view t_ ) {
         }
     }
     return d[m-1][n-1];
+}
+
+constexpr uint32_t hash( const std::string& str_ ) {
+    uint32_t h = 2166136261U;
+    for( char c : str_ ) {
+        h ^= (uint32_t)c;
+        h *= 16777619U;
+    }
+    return h;
 }
 
 };

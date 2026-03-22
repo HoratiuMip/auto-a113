@@ -6,7 +6,10 @@ set( _excom_dir "${CMAKE_CURRENT_LIST_DIR}/excom" )
 ## Build A113.
 file( GLOB _source_files "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp" )
 add_library( A113_OSp STATIC ${_source_files} )
-target_link_libraries( A113_OSp PUBLIC A113_BRp )
+target_link_libraries( A113_OSp 
+    PUBLIC A113_BRp 
+    PUBLIC A113_GEp
+)
 target_include_directories( A113_OSp PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include" )
 
 # Spdlog

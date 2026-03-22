@@ -6,7 +6,7 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <a113/osp/core.hpp>
+#include <a113/gep/core.hpp>
 
 namespace a113::text {
 
@@ -103,6 +103,9 @@ public:
         A113_inline auto& arg_i32v( void )  { return *(std::vector< int32_t >*)_arg; }
         A113_inline auto& arg_f32v( void )  { return *(std::vector< float >*)_arg; }
         A113_inline auto& arg_f64v( void )  { return *(std::vector< double >*)_arg; }
+
+    public:
+        A113_inline void operator += ( const std::string& line_ ) { *_ctx->out += line_; }
 
     _A113_PROTECTED:
         template< typename _T_cvt_ > bool _cvt_opt_arg( void* where_ ) {
@@ -325,11 +328,7 @@ _A113_PROTECTED:
             ._ctx = ctx_
         };
 
-        A113_ASSERT_OR( itr->fnc( stencil ) == A113_OK ) {
-            return A113_ERR_USERCALL;
-        }
-
-        return A113_OK;
+        return itr->fnc( stencil );
     }
 
 public:
@@ -348,11 +347,12 @@ public:
         }
 
         std::shared_lock lck{ _cmd_map_mtx };
-        _consume_toks( &ctx );
-
-        return A113_OK;
+        return _consume_toks( &ctx );
     }
 
+    A113_inline status_t operator () ( const std::string& text_, std::string* out_ ) {
+        return execute( text_, out_ );
+    }
 };
 
 char Fastcli::stencil_t::next( void ) {
