@@ -93,6 +93,33 @@ struct Client {
                     stencil_ += resp.dump(4);
                     return A113_OK;
                 }
+            }, {
+                .text = "snoop",
+                .opts = {
+                    { .sh0rt = 'n', .l0ng = "name", .arg = text::Fastcli::Arg_text }
+                },
+                .fnc = [ this ] ( auto& stencil_ ) -> auto {
+                    const char*   name   = nullptr;
+
+                    char opt; while( opt = stencil_.next() ) {
+                        switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                            case 'n': name = stencil_.arg_text().c_str(); break;
+                        }
+                    }
+
+                    nlohmann::json req{
+                        { "verb", "snoop" },
+                        { "name", name }
+                    };
+                    nlohmann::json resp;
+                    CU_ASSERT_OR( A113_OK == CU_request( _server, req.dump(), &resp ) ) {
+                        stencil_ += "Request error.";
+                        return A113_ERR_FLOW;
+                    };
+                    
+                    stencil_ += resp.dump(4);
+                    return A113_OK;
+                }
             }
         }
     };

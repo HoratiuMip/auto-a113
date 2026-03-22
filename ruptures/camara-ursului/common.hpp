@@ -14,7 +14,11 @@
 
 #define   DEFAULT_SERVER_INBOUND_TIMEOUT_S    15
 #define   DEFAULT_SERVER_OUTBOUND_TIMEOUT_S   15
-#define   CU_DEFAULT_SERVER_UNSUBS_HOLD_TIME_S   300
+
+/* Time before an unsubscribed client is terminated due to inactivity. */
+#define   CU_DEFAULT_SERVER_UNSUBS_HOLD_TIME_S         300
+/* Time before a pantry is terminated due to lack of clients. */
+#define   CU_DEFAULT_SERVER_PANTRY_IDLE_ALLOW_TIME_S   30
 
 #define   CU_DEFAULT_CLIENT_INBOUND_TIMEOUT_S    15
 #define   CU_DEFAULT_CLIENT_OUTBOUND_TIMEOUT_S   15

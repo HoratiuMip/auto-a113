@@ -25,32 +25,77 @@ struct Server {
     };
 
     struct pantry_t {
-        int                        track          = 0x0;
+        string                     name           = {};
+        thread                     main_th        = {};
         list< HVec< client_t > >   clients_list   = {};
         shared_mutex               clients_mtx    = {};
         time_t                     born           = { time( nullptr ) };
+        time_t                     last_idle      = 0x0;
     };
 
 // ======================= Fields =======================
-    atomic_bool                     _running       = { false };
+    atomic_bool                       _running       = { false };
 
-    atomic_int                      _track_id      = { 0x0 };
-    map< int, HVec< client_t > >    _track_map     = {};
-    shared_mutex                    _track_mtx     = {};
+    atomic_int                        _track_id      = { 0x0 };
+    map< int, HVec< client_t > >      _track_map     = {};
+    shared_mutex                      _track_mtx     = {};
 
-    list< HVec< client_t > >        _unsubs_list   = {};
-    shared_mutex                    _unsubs_mtx    = {};
-    thread                          _unsubs_th     = {};
+    map< string, HVec< pantry_t > >   _pantrys_map   = {};
+    shared_mutex                      _pantrys_mtx   = {};
+
+    list< HVec< client_t > >          _unsubs_list   = {};
+    shared_mutex                      _unsubs_mtx    = {};
+    thread                            _unsubs_th     = {};
 
 // ======================= Utility =======================
-    void _terminate_by_track_id( int track_id ) {
+    void _terminate_track( int track_id_ ) {
         lock_guard lck{ _track_mtx };
 
-        auto itr = _track_map.find( track_id );
+        auto itr = _track_map.find( track_id_ );
         CU_ASSERT_OR( itr != _track_map.end() ) return;
 
         itr->second->sock.disconnect();
         _track_map.erase( itr );
+    }
+
+    void _terminate_pantry( const string& name_ ) {
+        lock_guard lck{ _pantrys_mtx };
+
+        auto itr = _pantrys_map.find( name_ );
+        CU_ASSERT_OR( itr != _pantrys_map.end() ) return;
+        
+        lock_guard lck2{ itr->second->clients_mtx };
+        lock_guard lck3{ _unsubs_mtx };
+        
+        _unsubs_list.splice( _unsubs_list.end(), itr->second->clients_list );
+
+        itr->second->last_idle = 0x1;
+    }
+
+    HVec< pantry_t > _create_or_get_pantry( const string& name_ ) {
+        lock_guard lck{ _pantrys_mtx };
+
+        auto& pan = _pantrys_map[ name_ ];
+        if( pan ) return pan;
+        
+        pan = HVec< pantry_t >::make();
+        pan->name = name_;
+
+        thread( &Server::_pantry_main, this, pan ).detach();
+        return pan;
+    }
+
+    status_t _create_pantry( string name_ ) { 
+        lock_guard lck{ _pantrys_mtx };
+
+        auto& pan = _pantrys_map[ name_ ];
+        CU_ASSERT_OR( pan == nullptr ) return A113_ERR_WOULD_OVRWR;
+
+        pan = HVec< pantry_t >::make();
+        pan->name = move( name_ );
+    
+        thread( &Server::_pantry_main, this, pan ).detach();
+        return A113_OK;
     }
 
 // ======================= Mains =======================
@@ -66,7 +111,7 @@ struct Server {
                 int  byte_count      = 0x0;
                 int  bytes_available = -0x1;
 
-                if( t_now - unsub.last_xchg >= CU_DEFAULT_SERVER_UNSUBS_HOLD_TIME_S ) goto l_kill_unsub;
+                if( t_now - unsub.last_xchg >= CU_DEFAULT_SERVER_UNSUBS_HOLD_TIME_S ) goto l_terminate_unsub;
 
                 if( A113_OK == unsub.sock.holding_rx( &bytes_available ) ) {
                     if( bytes_available <= 0 ) goto l_itr_inc;
@@ -84,36 +129,54 @@ struct Server {
                 try {
                     auto json = nlohmann::json::parse( buffer, buffer + byte_count );
                     auto verb = json.find( "verb" );
-                    CU_ASSERT_OR( verb != json.end() && verb->is_string() ) goto l_kill_unsub;
+                    CU_ASSERT_OR( verb != json.end() && verb->is_string() ) goto l_terminate_unsub;
 
                     switch( text::hash( *verb ) ) {
                         case text::hash( "register" ): {
                             unsub.name = move( json[ "name" ].get_ref< string& >() );
-                            CU_ASSERT_OR( not unsub.name.empty() ) throw runtime_error{ "v: register: empty name" };
+                            CU_ASSERT_OR( not unsub.name.empty() ) throw runtime_error{ "verb: register: empty name" };
 
                             unsub.token = HVec< token_t >::make();
                             unsub.token->populate( unsub );
 
                             CU_ASSERT_OR( A113_OK == CU_respond( unsub.sock, nlohmann::json{
-                                { "status_str", "OK" },
                                 { "msg", "You have successfully registered on the server." },
                                 { "token", unsub.token->value }
-                            }.dump() ) ) goto l_kill_unsub;
+                            }.dump() ) ) goto l_terminate_unsub;
+                        break; }
+
+                        case text::hash( "snoop" ): {
+                            CU_ASSERT_OR( unsub.token ) throw runtime_error{ "verb: snoop: no token" };
+
+                            string pan_name = move( json[ "name" ].get_ref< string& >() );
+                            CU_ASSERT_OR( not pan_name.empty() ) throw runtime_error{ "verb: snoop: empty pantry name" };
+
+                            auto pan = _create_or_get_pantry( pan_name );
+                            CU_ASSERT_OR( A113_OK == CU_respond( unsub.sock, nlohmann::json{
+                                { "msg", "Snooping pantry." },
+                            }.dump() ) ) goto l_terminate_unsub;
+                        {
+                            lock_guard lck{ pan->clients_mtx };
+                            pan->clients_list.emplace_back( move( *u_itr ) );
+                        }
+                            goto l_erase_unsub;
                         break; }
                     }
                 } catch( const nlohmann::json::parse_error& err_ ) {
-                    goto l_kill_unsub;
+                    goto l_terminate_unsub;
                 } catch( const runtime_error& err_ ) {
                     spdlog::warn( "{}:{} > {}", unsub.sock.addr_c_str(), unsub.sock.port(), err_.what() );
-                    goto l_kill_unsub;
+                    goto l_terminate_unsub;
                 } catch( ... ) {
-                    goto l_kill_unsub;
+                    goto l_terminate_unsub;
                 }
                 goto l_itr_inc; 
 
             l_unsub_op_fail:
                 if( not ++unsub.failed_ops >= SERVER_DROP_UNSUB_AFTER_FAIL_N ) goto l_itr_inc;
-            l_kill_unsub:
+            l_terminate_unsub:
+                _terminate_track( unsub.track );
+            l_erase_unsub:
                 u_itr = _unsubs_list.erase( u_itr );
                 goto l_no_itr_inc;
             l_itr_inc:
@@ -123,6 +186,27 @@ struct Server {
             }
         }
         this_thread::sleep_for( chrono::milliseconds{ 100 } );
+    }
+
+    void _pantry_main( HVec< pantry_t > pan_ ) {
+        pantry_t& pan = *pan_;
+
+        while( true ) {
+            time_t t_now = time( nullptr );
+
+            shared_lock lck{ pan.clients_mtx };
+            if( pan.clients_list.empty() ) {
+                if( pan.last_idle == 0x0 ) pan.last_idle = t_now;
+                else if( t_now - pan.last_idle > CU_DEFAULT_SERVER_PANTRY_IDLE_ALLOW_TIME_S ) break;
+            } else {
+                pan.last_idle = 0x0;
+            }
+
+            this_thread::sleep_for( chrono::milliseconds( 100 ) );
+        }
+        
+        lock_guard lck{ _pantrys_mtx };
+        _pantrys_map.erase( pan.name );
     }
 
     int main( int argc_, char* argv_[] ) {
@@ -164,41 +248,82 @@ struct Server {
         {
             .text = "terminate",
             .opts = {
-                { .sh0rt = 't', .l0ng = "track-id", .arg = text::Fastcli::Arg_i32 }
+                { .sh0rt = 't', .l0ng = "track", .arg = text::Fastcli::Arg_i32 },
+                { .sh0rt = 'p', .l0ng = "pantry", .arg = text::Fastcli::Arg_text }
             },
-            .fnc  = [ this ] ( auto& stencil_ ) -> auto {
-                optional< int > track_id = {};
-
+            .fnc = [ this ] ( auto& stencil_ ) -> auto {
                 char opt; while( opt = stencil_.next() ) { 
                     switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
-                        case 't': track_id = stencil_.arg_i32(); break;
+                        case 't': _terminate_track( stencil_.arg_i32() ); break;
+                        case 'p': _terminate_pantry( stencil_.arg_text() ); break; 
                     } 
                 }
-
-                if( track_id.has_value() ) {
-                    _terminate_by_track_id( track_id.value() );
-                }
-
                 return A113_OK;
             }
         }, {
-            .text = "list-unsubs",
-            .opts = {},
-            .fnc  = [ this ] ( auto& stencil_ ) -> auto {
-                shared_lock lck{ _unsubs_mtx };
+            .text = "create-pantry",
+            .opts = {
+                { .sh0rt = 'n', .l0ng = "name", .arg = text::Fastcli::Arg_text }
+            },
+            .fnc = [ this ] ( auto& stencil_ ) -> auto {
+                const char* name = nullptr;
 
+                char opt; while( opt = stencil_.next() ) { 
+                    switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                        case 'n': name = stencil_.arg_text().c_str(); break;
+                    } 
+                }
+
+                CU_ASSERT_OR( name ) {
+                    stencil_ += "Invalid pantry name."; return A113_ERR_BADARG;
+                }
+
+                _create_pantry( name );
+                return A113_OK;
+            }
+        }, {
+            .text = "list",
+            .opts = {
+                { .sh0rt = 'u', .l0ng = "unsubs" },
+                { .sh0rt = 'p', .l0ng = "pantries" }
+            },
+            .fnc  = [ this ] ( auto& stencil_ ) -> auto {
                 stencil_ += "\n";
                 auto t_now = time( nullptr );
 
-                for( auto& unsub : _unsubs_list ) {
-                    auto token = unsub->token;
+                char opt; while( opt = stencil_.next() ) {
+                    switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                        case 'u': {
+                            shared_lock lck{ _unsubs_mtx };
 
-                    stencil_ += format( "{}\tIp: {}:{}\tLease: {}s\tToken: {}\n",
-                        unsub->track, unsub->sock.addr_c_str(), unsub->sock.port(),
-                        CU_DEFAULT_SERVER_UNSUBS_HOLD_TIME_S - (t_now - unsub->last_xchg),
-                        token ? token->value : "NO_TOKEN"
-                    );
+                            stencil_ += "===== Unsubscribed clients =====\n";
+                    
+                            for( auto& unsub : _unsubs_list ) {
+                                auto token = unsub->token;
+
+                                stencil_ += format( "{}\tIp: {}:{}\tLease: {}s\tToken: {}\n",
+                                    unsub->track, unsub->sock.addr_c_str(), unsub->sock.port(),
+                                    CU_DEFAULT_SERVER_UNSUBS_HOLD_TIME_S - (t_now - unsub->last_xchg),
+                                    token ? token->value : "NO_TOKEN"
+                                );
+                            }
+                        break; }
+                        case 'p': {
+                            shared_lock lck{ _pantrys_mtx };
+
+                            stencil_ += "===== Pantries =====\n";
+                    
+                            for( auto& [ name, pantry ] : _pantrys_map ) {
+                                int snoop_count = pantry->clients_list.size();
+
+                                stencil_ += format( "{}\tSnoopers: {}\n",
+                                    name, snoop_count
+                                );
+                            }
+                        break; }
+                    }
                 }
+
                 return A113_OK;
             }
         }
