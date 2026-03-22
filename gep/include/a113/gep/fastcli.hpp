@@ -116,12 +116,12 @@ public:
             } else
             if constexpr( std::is_same_v< _T_cvt_, float > ) {
                 char* endptr = const_cast< char* >( _ctx->arg_tok->c_str() );
-                *(float*)where_ = (float)strtof32( endptr, &endptr );
+                *(float*)where_ = (float)strtof( endptr, &endptr );
                 return endptr == &*_ctx->arg_tok->end();
             } else
             if constexpr( std::is_same_v< _T_cvt_, double > ) {
                 char* endptr = const_cast< char* >( _ctx->arg_tok->c_str() );
-                *(double*)where_ = (double)strtof64( endptr, &endptr );
+                *(double*)where_ = (double)strtod( endptr, &endptr );
                 return endptr == &*_ctx->arg_tok->end();
             } 
             return false;
