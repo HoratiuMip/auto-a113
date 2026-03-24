@@ -107,6 +107,10 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
 
     static float MSE = 0.0;
 
+    static mdn_1::tfc_t< float > tf{ { 1.0 }, { 1.0, 2*0.707, 1.0 }, mdn_0::DiscDiffMth_FwdEuler };
+    static auto t = mdn_1::linspace_s<float>( 0.01, 0.0, 15.0 );
+    static std::vector< float > y;
+
     static auto _do_once_1 = [ & ] () -> char {
         grid_f
         .span_s( { {STEP_SZ, -5.0f, 5.0f}, {STEP_SZ, -5.0f, 5.0f} } )
@@ -131,6 +135,11 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
         glEnableVertexAttribArray( GL_ZERO );
     
         Imm.cluster().disengage_face_culling();
+
+        y.assign( t.size(), 0x0 );
+        for( int i = 0x0; i < y.size(); ++i ) {
+            y[ i ] = tf.step( 1.0, 0.01 );
+        }
 
         return 0x0;
     }();
@@ -164,16 +173,23 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
     ImGui::Begin( "Plots" );
 
     ImPlot::PushColormap( ImPlotColormap_Viridis );
-    if( ImPlot::BeginPlot( "f(x,y)", {680,680}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {
-        ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_Invert );
-        
-        ImPlot::PlotHeatmap(
-            "##hm_1", grid_f.raw(), grid_f.n_of(1), grid_f.n_of(0),
-            0, 0, nullptr, {-5,-5}, {5,5},
-            ImPlotHeatmapFlags_None
+    if( ImPlot::BeginPlot( "tf", {680,680}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {    
+        ImPlot::PlotLine(
+            "##tf_1", t.data(), y.data(), t.size()
         );
         ImPlot::EndPlot();
     }
+
+    // if( ImPlot::BeginPlot( "f(x,y)", {680,680}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {
+    //     ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_Invert );
+        
+    //     ImPlot::PlotHeatmap(
+    //         "##hm_1", grid_f.raw(), grid_f.n_of(1), grid_f.n_of(0),
+    //         0, 0, nullptr, {-5,-5}, {5,5},
+    //         ImPlotHeatmapFlags_None
+    //     );
+    //     ImPlot::EndPlot();
+    // }
     ImGui::SameLine();
     ImPlot::ColormapScale(
         "Scale",

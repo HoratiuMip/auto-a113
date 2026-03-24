@@ -107,6 +107,10 @@ public:
     public:
         A113_inline void operator += ( const std::string& line_ ) { *_ctx->out += line_; }
 
+        template< typename ..._Args_ > A113_inline void operator () ( const char* const fmt_, _Args_&&... args_ ) {
+            this->operator+=( std::vformat( fmt_, std::make_format_args( std::forward< _Args_ >( args_ )... ) ) );
+        }
+
     _A113_PROTECTED:
         template< typename _T_cvt_ > bool _cvt_opt_arg( void* where_ ) {
             if constexpr( std::is_same_v< _T_cvt_, int32_t > ) {

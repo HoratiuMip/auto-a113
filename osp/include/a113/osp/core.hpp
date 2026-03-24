@@ -39,6 +39,8 @@
     #include <cerrno>
 #endif
 
+#define A113_SPDLOG_PATTERN "[%^%l%$] [%Y-%m-%d %H:%M:%S] [%n] - %v"
+
 namespace a113 {
 
 enum LogComponent_ {
@@ -123,7 +125,7 @@ public:
     #undef _MAKE_LOG_AND_PATERN
         
         logger = spdlog::stdout_color_mt( A113_VERSION_STRING ); 
-        logger->set_pattern( "[%^%l%$] [%Y-%m-%d %H:%M:%S] [%n] - %v" );
+        logger->set_pattern( A113_SPDLOG_PATTERN );
 
         _Component_loggers[ LogComponent_General ] = logger;
     }
