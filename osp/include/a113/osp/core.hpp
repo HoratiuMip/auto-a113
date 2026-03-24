@@ -39,7 +39,7 @@
     #include <cerrno>
 #endif
 
-#define A113_SPDLOG_PATTERN "[%^%l%$] [%Y-%m-%d %H:%M:%S] [%n] - %v"
+#define A113_SPDLOG_PATTERN "[%Y-%m-%d %H:%M:%S] [%n] [%^%l%$] %v"
 
 namespace a113 {
 

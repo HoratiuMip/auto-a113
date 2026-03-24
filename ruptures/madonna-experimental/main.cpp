@@ -12,7 +12,7 @@ struct _model_t {
     inline static const char*   BASE_SHADERS[ 5 ]   = {
         R"(
             #version 330 core
-            //A113#strid BASE_SHADER_VRTX
+            //A113#strid<BASE_SHADER_VRTX>
 
             layout (location = 0) in vec3 in_vrtx;
             uniform mat4  unif_PV;
@@ -43,7 +43,7 @@ struct _model_t {
         nullptr,
         R"(
             #version 330 core
-            //A113#strid BASE_SHADER_FRAG
+            //A113#strid<BASE_SHADER_FRAG>
             out vec4 frag;
 
             in vec3 vrtx_color;
@@ -56,7 +56,7 @@ struct _model_t {
     inline static const char*   WIRE_SHADERS[ 5 ]   = {
         R"(
             #version 330 core
-            //A113#strid WIRE_SHADER_VRTX
+            //A113#strid<WIRE_SHADER_VRTX>
 
             layout (location = 0) in vec3 in_vrtx;
             uniform mat4  unif_PV;
@@ -72,7 +72,7 @@ struct _model_t {
         nullptr,
         R"(
             #version 330 core
-            //A113#strid WIRE_SHADER_FRAG
+            //A113#strid<WIRE_SHADER_FRAG>
             out vec4 frag;
 
             void main() {
@@ -102,12 +102,12 @@ struct _model_t {
 static imm::lens_t G_lens;
 
 status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
-    static constexpr float STEP_SZ = 0.5f;
+    static constexpr float STEP_SZ = 0.1f;
     static mdn_2::srf_grid_t< float > grid_f;
 
     static float MSE = 0.0;
 
-    static mdn_1::tfc_t< float > tf{ { 1.0 }, { 1.0, 2*0.707, 1.0 }, mdn_0::DiscDiffMth_FwdEuler };
+    static mdn_1::tfc_t< float > tf{ { 25 }, { 1, 2, 25 }, mdn_0::DiscDiffMth_FwdEuler };
     static auto t = mdn_1::linspace_s<float>( 0.01, 0.0, 15.0 );
     static std::vector< float > y;
 
@@ -115,10 +115,7 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
         grid_f
         .span_s( { {STEP_SZ, -5.0f, 5.0f}, {STEP_SZ, -5.0f, 5.0f} } )
         .apply( [] ( float* x ) -> float {
-            const float x1 = x[0x0];
-            const float x2 = x[0x1];
-            const float r  = x1*x1 - x2*x2 + 8*x1*x2 - pow(x2,4) + 1;
-            return r;
+            return exp(-0.1 * (x[0] * x[0] + x[1] * x[1])) * sin(2 * x[0]) * cos(2 * x[1]);
         } );
       
         auto [ vbo, ebo ] = grid_f.gen_VBO_and_EBO(); G_model.count = ebo.size();
@@ -133,6 +130,7 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
 
         glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
         glEnableVertexAttribArray( GL_ZERO );
+        glBindVertexArray( GL_ZERO );
     
         Imm.cluster().disengage_face_culling();
 
@@ -145,6 +143,8 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
     }();
 
     const glm::mat4 PV = glm::perspective( (float)M_PI/3, 1.0f, 0.1f, 1000.0f ) * G_lens.view();
+
+    Imm.assets_idle_splash_render();
 
     Imm.cluster().push_render_target( &G_model.ren_targ );
     glClearColor( 0.1f, 0.1f, 0.1f, 1.0f );
@@ -173,7 +173,8 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
     ImGui::Begin( "Plots" );
 
     ImPlot::PushColormap( ImPlotColormap_Viridis );
-    if( ImPlot::BeginPlot( "tf", {680,680}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {    
+    if( ImPlot::BeginPlot( "tf", {0,0}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {  
+        ImPlot::SetNextLineStyle( { 0.0, 1.0, 1.0, 1.0 }, 2.5 );  
         ImPlot::PlotLine(
             "##tf_1", t.data(), y.data(), t.size()
         );
@@ -194,16 +195,28 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
     ImPlot::ColormapScale(
         "Scale",
         grid_f.min(),
-        grid_f.max(),
-        ImVec2(60, 200)
+        grid_f.max()
     );
     ImPlot::PopColormap();
 
     ImGui::SameLine();
     ImGui::Image( (ImTextureID)G_model.ren_targ._tex_glidx, {680,680} );
 
+    static mdn_1::rvec< float > sin_t{500};
+    static mdn_1::rvec< float > sin_y{500};
+
     ImGui::Separator();
-    ImGui::Text( "MSE: %f", MSE );
+    if( ImPlot::BeginPlot( "sin", {0,0}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {  
+        ImPlot::SetNextLineStyle( { 1.0, 0.32, 0.0, 1.0 }, 2.5 );  
+        ImPlot::PlotLine(
+            "##sin_1", sin_t.data(), sin_y.data(), sin_t.size(), ImPlotLineFlags_Shaded, sin_t.head()
+        );
+        ImPlot::EndPlot();
+    }
+
+    float ttt = glfwGetTime();
+    sin_t.push_back( ttt );
+    sin_y.push_back( std::sin( ttt ) );
 
     ImGui::End();
 
@@ -221,7 +234,7 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
         }
 
         G_lens.pitch_dl( ( y - l_y ) / 12.0 );
-        G_lens.yaw_dg( ( x - l_x ) / 12.0 );
+        G_lens.yaw_dl( ( x - l_x ) / 12.0 );
         l_x = x; l_y = y;
     l_end:
     }
@@ -245,7 +258,7 @@ int main( int argc, char* argv[] ) {
             ImGui::StyleColorsClassic();
 
             G_model.init();
-            G_lens = glm::vec3{ 0, 0, 40 };
+            G_lens = glm::vec3{ 0, 0, 10 };
             G_lens >= glm::vec3{ 0, 0, 0 };
             G_lens ^= glm::vec3{ 0, 1, 0 };
 

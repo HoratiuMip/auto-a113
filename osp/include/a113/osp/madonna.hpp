@@ -12,7 +12,8 @@
 /* === excom includes === */
 #include <lapacke.h>
 
-namespace a113::mdn {
+/* === internal bridge === */
+namespace a113::_mdn {
 
 class _bridge_t {
 public:
@@ -20,7 +21,7 @@ public:
         logger = spdlog::stdout_color_mt( A113_VERSION_STRING"/madonna" ); 
         logger->set_pattern( A113_SPDLOG_PATTERN );
 
-        logger->info( "Bridge init OK." );
+        logger->info( "bridge: init OK." );
     }
 
 _A113_PROTECTED:
@@ -33,32 +34,33 @@ public:
 
 };
 
-namespace a113::mdn_0 { using namespace mdn;
+/* === no memory structures  === */
+namespace a113::mdn_0 { using namespace _mdn;
 
 enum DiscDiffMth_ {
     DiscDiffMth_FwdEuler,
     DiscDiffMth_Tustin
 };
 
-template< typename _FTYPE_ > struct tfc_t {
+template< typename _FTYPE_v_ > struct tfc_t {
     int        n     = 0;
     int        m     = 0;
-    _FTYPE_*   den   = nullptr;
-    _FTYPE_*   num   = nullptr;
+    _FTYPE_v_*   den   = nullptr;
+    _FTYPE_v_*   num   = nullptr;
 };
 
-template< typename _FTYPE_v_, typename _FTYPE_b_ >
-_FTYPE_b_ linspace_n( _FTYPE_v_* v_, int n_, _FTYPE_b_ low_, _FTYPE_b_ upp_ ) {
-    _FTYPE_b_ step = ( upp_ - low_ ) / n_;
+template< typename _FTYPE_v_ >
+_FTYPE_v_ linspace_n( _FTYPE_v_* v_, int n_, _FTYPE_v_ low_, _FTYPE_v_ upp_ ) {
+    _FTYPE_v_ step = ( upp_ - low_ ) / n_;
     for( int n = 0; n < n_; ++n ) {
-        v_[ n ] = (_FTYPE_v_)low_;
+        v_[ n ] = low_;
         low_ += step;
     } 
     return step;
 }
  
-template< typename _FTYPE_1_, typename _FTYPE_2_, typename _FTYPE_r_, typename _Op_ >
-_FTYPE_r_ roam_acc_2( _FTYPE_1_* v1_, _FTYPE_2_* v2_, int n_, _FTYPE_r_ acc_, _Op_ op_ ) {
+template< typename _FTYPE_v_, typename _Op_ >
+_FTYPE_v_ roam_acc_2( _FTYPE_v_* v1_, _FTYPE_v_* v2_, int n_, _FTYPE_v_ acc_, _Op_ op_ ) {
     for( int i = 0; i < n_; ++i ) acc_ += op_( v1_[i], v2_[i] );
     return acc_;
 }
@@ -115,7 +117,7 @@ _FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FT
 
     for( int ord = n_-2; ord >= 0; --ord ) {
         const int i       = ord<<1;
-        const _FTYPE_v_ d = dy_h_[ li ];
+        const _FTYPE_v_ d = (dy_h_[ li ] + dy_h_[ li+1 ]) / 2;
 
         dy_h_[ i+1 ] = dy_h_[ i ];
         dy_h_[ i ]   += d*t_;
@@ -128,67 +130,49 @@ _FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FT
 
 }
 
-namespace a113::mdn_1 { using namespace mdn;
+/* === memory structures === */
+namespace a113::mdn_1 { using namespace _mdn;
 
 template< typename _FTYPE_v_ > using vec = std::vector< _FTYPE_v_ >;
 
-template< typename _FTYPE_ > struct tfc_t {
+template< typename _FTYPE_v_ > struct rvec {
+public: 
+    rvec( void ) = default;
+
+    rvec( int cap_ ) { this->bind( cap_ ); }
+
+_A113_PROTECTED:
+    std::unique_ptr< _FTYPE_v_[] >   _data   = nullptr;
+    int                              _head   = 0x0;
+    int                              _sz     = 0;
+    int                              _cap    = 0;
+
 public:
-    tfc_t( void ) = default;
-
-    tfc_t( vec< _FTYPE_ > num_, vec< _FTYPE_ > den_, mdn_0::DiscDiffMth_ diffm_ ) {
-        this->bind( std::move( num_ ), std::move( den_ ), diffm_ );
-    }
-
-public:
-    vec< _FTYPE_ >        den     = {};
-    vec< _FTYPE_ >        num     = {};   
-    vec< _FTYPE_ >        dy_h    = {};
-    vec< _FTYPE_ >        du_h    = {};
-    mdn_0::DiscDiffMth_   diffm   = mdn_0::DiscDiffMth_FwdEuler;
-    
-public:
-    status_t bind( vec< _FTYPE_ > num_, vec< _FTYPE_ > den_, mdn_0::DiscDiffMth_ diffm_ ) {
-        A113_ASSERT_OR( not den_.empty() && not num_.empty() ) {
-            BridgE->error( "tfc_t: den and num shall not be empty." );
-            return A113_ERR_BADARG;
-        }
-        den   = std::move( den_ ); 
-        num   = std::move( num_ );
-        diffm = diffm_;
-
-        switch( diffm ) {
-            case mdn_0::DiscDiffMth_FwdEuler: {
-                dy_h.assign( this->n() * 2, _FTYPE_{0} );
-                du_h.assign( this->m() * 2, _FTYPE_{0} );
-            break; }
-
-            default: {
-                BridgE->error( "tfc_t: unknown discrete differentiation method." );
-                return A113_ERR_BADARG;
-            }
-        }
+    status_t bind( int cap_ ) {
+        _data.reset( new _FTYPE_v_[ _cap = cap_ ] );
+        _head = 0; _sz = 0;
 
         return A113_OK;
     }
 
 public:
-    A113_inline int n( void ) const { return (int)den.size(); }
-    A113_inline int m( void ) const { return (int)num.size(); }
+    _FTYPE_v_* data( void ) { return _data.get(); }
+    int head( void ) { return _head; }
+    int size( void ) { return _sz; }
 
 public:
-    _FTYPE_ step( _FTYPE_ u_, _FTYPE_ t_ ) {
-        switch( diffm ) {
-            case mdn_0::DiscDiffMth_FwdEuler: return mdn_0::tfc_step_fwdeul( 
-                den.data(), this->n(), num.data(), this->m(), dy_h.data(), du_h.data(), u_, t_
-            );
+    _FTYPE_v_& push_back( const _FTYPE_v_& v_ ) {
+        int idx = 0x0; 
+        if( _sz == _cap ) [[likely]] {
+            idx = _head++; _head %= _cap;
+        } else {
+            idx = ( _head + _sz++ ) % _cap;
         }
-
-        BridgE->error( "tfc_t: unknown discrete differentiation method." );
-        return 0x0;
+        return _data[ idx ] = v_;
     }
 
 };
+
 
 template< typename _FTYPE_v_ >
 vec< _FTYPE_v_ > linspace_n( int n_, _FTYPE_v_ low_, _FTYPE_v_ upp_ ) {
@@ -217,27 +201,98 @@ vec< std::complex< _FTYPE_v_ > > roots( const vec< _FTYPE_v_ >& co_ ) {
     return res;
 }
 
+
+template< typename _FTYPE_v_ > struct siso_t {
+public:
+    virtual _FTYPE_v_ step( _FTYPE_v_ u_, _FTYPE_v_ t_ ) = 0;
+    virtual void reset( void ) = 0;
+};
+
+template< typename _FTYPE_v_ > struct tfc_t : public siso_t< _FTYPE_v_ > {
+public:
+    tfc_t( void ) = default;
+
+    tfc_t( vec< _FTYPE_v_ > num_, vec< _FTYPE_v_ > den_, mdn_0::DiscDiffMth_ diffm_ ) {
+        this->bind( std::move( num_ ), std::move( den_ ), diffm_ );
+    }
+
+public:
+    vec< _FTYPE_v_ >      den     = {};
+    vec< _FTYPE_v_ >      num     = {};   
+    vec< _FTYPE_v_ >      dy_h    = {};
+    vec< _FTYPE_v_ >      du_h    = {};
+    mdn_0::DiscDiffMth_   diffm   = mdn_0::DiscDiffMth_FwdEuler;
+    
+public:
+    status_t bind( vec< _FTYPE_v_ > num_, vec< _FTYPE_v_ > den_, mdn_0::DiscDiffMth_ diffm_ ) {
+        A113_ASSERT_OR( not den_.empty() && not num_.empty() ) {
+            BridgE->error( "tfc_t: den and num shall not be empty." );
+            return A113_ERR_BADARG;
+        }
+        den   = std::move( den_ ); 
+        num   = std::move( num_ );
+        diffm = diffm_;
+
+        switch( diffm ) {
+            case mdn_0::DiscDiffMth_FwdEuler: {
+                dy_h.assign( this->n() * 2, _FTYPE_v_{0} );
+                du_h.assign( this->m() * 2, _FTYPE_v_{0} );
+            break; }
+
+            default: {
+                BridgE->error( "tfc_t: unknown discrete differentiation method." );
+                return A113_ERR_BADARG;
+            }
+        }
+
+        return A113_OK;
+    }
+
+public:
+    A113_inline int n( void ) const { return (int)den.size(); }
+    A113_inline int m( void ) const { return (int)num.size(); }
+
+public:
+    virtual _FTYPE_v_ step( _FTYPE_v_ u_, _FTYPE_v_ t_ ) override {
+        switch( diffm ) {
+            case mdn_0::DiscDiffMth_FwdEuler: return mdn_0::tfc_step_fwdeul( 
+                den.data(), this->n(), num.data(), this->m(), dy_h.data(), du_h.data(), u_, t_
+            );
+        }
+
+        BridgE->error( "tfc_t: unknown discrete differentiation method." );
+        return 0x0;
+    }
+
+    virtual void reset( void ) override {
+        std::fill_n( dy_h.data(), dy_h.size(), _FTYPE_v_{0} );
+        std::fill_n( du_h.data(), du_h.size(), _FTYPE_v_{0} );
+    }
+
+};
+
 }
 
-namespace a113::mdn_2 { using namespace mdn;
+/* === hyper structures === */
+namespace a113::mdn_2 { using namespace _mdn;
 
 using mdn_1::vec;
 
-template< typename _FTYPE_ = double > struct srf_grid_t {
+template< typename _FTYPE_v_ = double > struct srf_grid_t {
 public:
-    using apply_op_t = std::function< _FTYPE_( _FTYPE_* ) >;
+    using apply_op_t = std::function< _FTYPE_v_( _FTYPE_v_* ) >;
 
 public:
     srf_grid_t( void ) = default;
 
 public:
-    vec< vec< _FTYPE_ > >   _spans   = {};
-    vec< _FTYPE_ >          _field   = {};
-    _FTYPE_                 _min     = _FTYPE_{0};
-    _FTYPE_                 _max     = _FTYPE_{0};
+    vec< vec< _FTYPE_v_ > >   _spans   = {};
+    vec< _FTYPE_v_ >          _field   = {};
+    _FTYPE_v_                 _min     = _FTYPE_v_{0};
+    _FTYPE_v_                 _max     = _FTYPE_v_{0};
 
 public:
-    A113_inline _FTYPE_* raw( void ) { return _field.data(); }
+    A113_inline _FTYPE_v_* raw( void ) { return _field.data(); }
 
     A113_inline int n_of( int d_ ) const { return (int)_spans[d_].size(); }
     A113_inline int count( void ) const { return (int)_field.size(); }
@@ -247,12 +302,12 @@ public:
     A113_inline void _align_field( void ) {
         int z_field_sz = 1;
         for( auto& span : _spans ) z_field_sz *= span.size();
-        _field.assign( z_field_sz, _FTYPE_{0} );
+        _field.assign( z_field_sz, _FTYPE_v_{0} );
     }
 
 public:
     srf_grid_t& span_n( 
-        const vec< std::tuple< int, _FTYPE_, _FTYPE_ > >& spans_
+        const vec< std::tuple< int, _FTYPE_v_, _FTYPE_v_ > >& spans_
     ) {
         _spans.assign( spans_.size(), {} );
         for( int d = 0x0; d < spans_.size(); ++d ) {
@@ -265,7 +320,7 @@ public:
     }
 
     srf_grid_t& span_s( 
-        const vec< std::tuple< _FTYPE_, _FTYPE_, _FTYPE_ > >& spans_
+        const vec< std::tuple< _FTYPE_v_, _FTYPE_v_, _FTYPE_v_ > >& spans_
     ) {
         _spans.assign( spans_.size(), {} );
         for( int d = 0x0; d < spans_.size(); ++d ) {
@@ -278,7 +333,7 @@ public:
     }
 
 public:
-    _FTYPE_& field_at( int* x_ ) {
+    _FTYPE_v_& field_at( int* x_ ) {
         int offset = 0x0;
 
         for( int d = this->dims() - 1; d >= 0x1; --d ) {
@@ -287,18 +342,18 @@ public:
         return _field[ offset ];
     }
 
-    A113_inline _FTYPE_& operator () ( int* x_ ) {
+    A113_inline _FTYPE_v_& operator () ( int* x_ ) {
         return this->field_at( x_ );
     }
 
-    A113_inline _FTYPE_ min( void ) const { return _min; }
-    A113_inline _FTYPE_ max( void ) const { return _max; }
+    A113_inline _FTYPE_v_ min( void ) const { return _min; }
+    A113_inline _FTYPE_v_ max( void ) const { return _max; }
 
 public:
     srf_grid_t& apply( apply_op_t op_ ) {
         const int count       = this->count();
         const int dims        = this->dims();
-        _FTYPE_   x[ dims ]   = { _FTYPE_{0} };
+        _FTYPE_v_   x[ dims ]   = { _FTYPE_v_{0} };
         int       ds[ count ] = { 0x0 };
         
         _min = _max = _field[0x0];
@@ -318,17 +373,17 @@ public:
     } 
 
 public:
-    _FTYPE_ MSE_with( const srf_grid_t& other_ ) const {
+    _FTYPE_v_ MSE_with( const srf_grid_t& other_ ) const {
         const int N = this->count();
-        return _FTYPE_{1.0}/N * mdn_0::roam_acc_2( _field.data(), other_._field.data(), N, _FTYPE_{0}, [] ( _FTYPE_ rhs, _FTYPE_ lhs ) {
+        return _FTYPE_v_{1.0}/N * mdn_0::roam_acc_2( _field.data(), other_._field.data(), N, _FTYPE_v_{0}, [] ( _FTYPE_v_ rhs, _FTYPE_v_ lhs ) {
             return std::pow( rhs - lhs, 2 );
         } );
     }
 
 public:
     std::pair< vec< float >, vec< unsigned int > > gen_VBO_and_EBO( int d0_ = 0x0, int d1_ = 0x1 ) {
-        const vec< _FTYPE_ >& x_span = _spans[ d0_ ];
-        const vec< _FTYPE_ >& y_span = _spans[ d1_ ];
+        const vec< _FTYPE_v_ >& x_span = _spans[ d0_ ];
+        const vec< _FTYPE_v_ >& y_span = _spans[ d1_ ];
         const int             xn     = x_span.size();
         const int             yn     = y_span.size();
 

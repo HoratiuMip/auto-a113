@@ -13,10 +13,29 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include <GLFW/glfw3.h>
-#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <tiny_obj_loader.h>
 
+namespace a113::imm {
+
+class _bridge_t {
+public:
+    _bridge_t( void ) {
+        logger = spdlog::stdout_color_mt( A113_VERSION_STRING"/imm" ); 
+        logger->set_pattern( A113_SPDLOG_PATTERN );
+
+        logger->info( "bridge: init OK." );
+    }
+
+_A113_PROTECTED:
+    HVec< spdlog::logger >   logger   = nullptr;
+
+public:
+    A113_inline spdlog::logger* operator -> ( void ) { return logger.get(); }
+
+}; inline _bridge_t BridgE;
+
+}
 
 namespace a113::imm {
 
@@ -140,27 +159,7 @@ struct ren_target_t {
     int      _w           = 0;
     int      _h           = 0;
 
-    void bind( void ) {
-        glGenTextures  ( 1, &_tex_glidx );
-        glBindTexture  ( GL_TEXTURE_2D, _tex_glidx );
-        glTexImage2D   ( GL_TEXTURE_2D, 0, GL_RGBA, _w, _h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-        glBindTexture  ( GL_TEXTURE_2D, GL_NONE );
-
-        glGenFramebuffers( 1, &_fbo );
-        glBindFramebuffer( GL_FRAMEBUFFER, _fbo );
-
-        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _tex_glidx, 0 );
-
-        glGenRenderbuffers   ( 1, &_rbo );
-        glBindRenderbuffer   ( GL_RENDERBUFFER, _rbo );
-        glRenderbufferStorage( GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, _w, _h );
-        glBindRenderbuffer   ( GL_RENDERBUFFER, GL_NONE );
-
-        glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, _rbo );
-        glBindFramebuffer        ( GL_FRAMEBUFFER, GL_NONE );
-    }
+    void bind( void );
 
     void bind( int w_, int h_ ) {
         _w = w_; _h = h_; this->bind();
@@ -333,7 +332,7 @@ public:
         glfwGetFramebufferSize( _glfwnd, &wnd_w, &wnd_h );
         glViewport( 0, 0, wnd_w, wnd_h );
 
-        A113_LOGI_IMM( "Rendering cluster docked on {}, using {}.", _rend_str ? _rend_str : "NULL", _gl_str ? _gl_str : "NULL" );
+        BridgE->info( "cluster: docked on {} @ {}.", _rend_str ? _rend_str : "NULL", _gl_str ? _gl_str : "NULL" );
     }
 
     Cluster( const Cluster& ) = delete;
@@ -369,17 +368,70 @@ _A113_PROTECTED:
     struct _shader_cache_t : public _internal_struct_t {
         cache::Bucket< std::string, shader_t >   _buckets[ ShaderPhase_COUNT ]   = {};
 
-        HVec< shader_t > make_shader( std::string source_, std::string strid_, ShaderPhase_ phase_, const char* from_ ) {
-            if( strid_.empty() ) strid_ = std::format( "{:X}", std::hash< std::string >{}( source_ ) );
+        HVec< shader_t > make_shader( std::string source_, ShaderPhase_ phase_, const char* from_ ) {
+            std::string strid = {};
+
+            struct _directive_t {
+                const char*   str;
+                void*         lbl;
+            } directives[] = {
+                { str: "//A113#strid", lbl: &&l_directive_strid },
+                { str: "//A113#include", lbl: &&l_directive_include }
+            };
+
+            for( auto& d : directives ) {
+                size_t      lpos = 0x0;
+                size_t      rpos = 0x0;
+                std::string arg;
+
+                while( ( lpos = source_.find( d.str, lpos ) ) != std::string::npos ) {
+                    rpos = source_.find( '\n', lpos );
+                    std::string_view line{ source_.c_str() + lpos, rpos - lpos };
+                    
+                    auto q1 = line.find_first_of( '<' );
+                    auto q2 = line.find_last_of( '>' );
+
+                    A113_ASSERT_OR( q1 != std::string::npos && q2 != std::string::npos ) {
+                        BridgE->error( "shader: \"{}\": argument not quoted between \"<>\".", strid );
+                        return nullptr;
+                    }
+
+                    arg = std::string{ line.data() + q1 + 1, q2 - q1 - 1 };
+                    goto *d.lbl;
+
+                l_directive_strid:
+                    A113_ASSERT_OR( strid.empty() ) {
+                        BridgE->error( "shader: \"{}\": already has name.", strid );
+                        return nullptr;
+                    }
+                    strid = std::move( arg );
+                    break;
+
+                l_directive_include:
+                    std::ifstream file{ arg, std::ios::binary };
+                    A113_ASSERT_OR( bool{file} ) {
+                        BridgE->error( "shader: \"{}\": could not open file \"{}\".", strid, arg );
+                        return nullptr;
+                    }
+                    
+                    arg.assign( std::istreambuf_iterator< char >{ file }, std::istreambuf_iterator< char >{} );
+                    source_.erase( lpos, rpos - lpos );
+                    source_.insert( lpos, arg );
+
+                    continue;
+                }
+            }
+
+            if( strid.empty() ) strid = std::format( "{:X}", std::hash< std::string >{}( source_ ) );
 
             auto bkt_hdl_ = cache::BucketHandle_None;
-            auto shader = _buckets[ phase_ ].query( strid_, bkt_hdl_ );
+            auto shader = _buckets[ phase_ ].query( strid, bkt_hdl_ );
 
             if( not shader ) {
-                shader = HVec< shader_t >::make( std::move( strid_ ), glCreateShader( ShaderPhase_MAP[ phase_ ] ) );
+                shader = HVec< shader_t >::make( std::move( strid ), glCreateShader( ShaderPhase_MAP[ phase_ ] ) );
 
                 A113_ASSERT_OR( GL_NONE != shader->glidx ) {
-                    A113_LOGE_IMM( "Could not create SHADER[{}].", shader->strid );
+                    BridgE->error( "shader: \"{}\": bad create.", shader->strid );
                     return nullptr;
                 }
 
@@ -391,26 +443,20 @@ _A113_PROTECTED:
                 A113_ASSERT_OR( status ) {
                     GLchar log_buf[ 512 ];
                     glGetShaderInfoLog( shader->glidx, sizeof( log_buf ), NULL, log_buf );
-                    A113_LOGE_IMM( "Could not compile SHADER[{}]: \"{}\".", shader->strid, log_buf );
+                    BridgE->error( "shader: \"{}\": bad compile: \"{}\".", shader->strid, log_buf );
                     return nullptr;
                 }
 
                 _buckets[ phase_ ].commit( shader->strid, shader );
-                A113_LOGI_IMM( "Created SHADER[{}] from {}.", shader->strid, from_ );
+                BridgE->info( "shader: \"{}\": created from {}.", shader->strid, from_ );
             } else {
-                A113_LOGI_IMM( "Pulled SHADER[{}] from cache, requested from {}.", shader->strid, from_ );
+                BridgE->info( "shader: \"{}\": hit in cache, requested from {}.", shader->strid, from_ );
             }
 
             return shader;
         }
 
         HVec< shader_t > make_shader_from_file( const std::filesystem::path& path_, ShaderPhase_ phase_ = ShaderPhase_None ) {
-            status_t    status   = A113_OK;
-            std::string source   = {};
-            std::string line     = {};
-
-            std::string strid    = "";
-
             if( ShaderPhase_None == phase_ ) {
                 int index = ShaderPhase_Vertex;
                 for( auto file_ext : ShaderPhase_FILE_EXTENSION ) {
@@ -419,66 +465,15 @@ _A113_PROTECTED:
                 }     
             }
             
-            std::function< void( const std::filesystem::path& ) > accumulate_glsl = [ & ] ( const std::filesystem::path& path_ ) -> void {
-                std::ifstream file{ path_, std::ios_base::binary };
-
-                A113_ASSERT_OR( file.operator bool() ) {
-                    A113_LOGE_IMM( "Could not open file \"{}\".", path_.string() );
-                    status = A113_ERR_OPEN; return;
-                }
-
-                while( std::getline( file, line ) ) {
-                    struct _directive_t {
-                        const char*   str;
-                        void*         lbl;
-                    } directives[] = {
-                        { str: "//A113#include", lbl: &&l_directive_include },
-                        { str: "//A113#strid", lbl: &&l_directive_strid }
-                    };
-
-                    std::string arg;
-
-                    for( auto& d : directives ) {
-                        if( !line.starts_with( d.str ) ) continue;
-                        
-                        auto q1 = line.find_first_of( '<' );
-                        auto q2 = line.find_last_of( '>' );
-
-                        A113_ASSERT_OR( q1 != std::string::npos && q2 != std::string::npos ) {
-                            A113_LOGE_IMM( "DIRECTIVE[{}] argument of SHADER[{}] is ill-formed. It shall be quoted between \"<>\". ", d.str, strid );
-                            status = -0x1; return;
-                        }
-                        
-                        arg = std::string{ line.c_str() + q1 + 1, q2 - q1 - 1 };
-                        goto *d.lbl;
-                    }
-                    goto l_code_line;
-                
-                l_directive_include:
-                    accumulate_glsl( path_.parent_path() / arg );
-                    continue;
-                
-                l_directive_strid:
-                    A113_ASSERT_OR( strid.empty() ) {
-                        A113_LOGE_IMM( "Multiple string identifiers given for SHADER[{}]<->[{}].", strid, arg );
-                        status = -0x1; return;
-                    }
-                    strid = std::move( arg );
-                    continue;
-
-                l_code_line:
-                    source += line; source += '\n';
-                }
-            };
-
-            accumulate_glsl( path_ );
-            
-            A113_ASSERT_OR( A113_OK == status ) {
-                A113_LOGE_IMM_INT( status, "Fault during accumulation of source code for SHADER[{}].", strid );
+            std::ifstream file{ path_.c_str(), std::ios::binary };
+            A113_ASSERT_OR( bool{file} ) {
+                BridgE->error( "shader: could not open file \"{}\".", path_.c_str() );
                 return nullptr;
             }
+            
+            std::string source{ std::istreambuf_iterator< char >{ file }, std::istreambuf_iterator< char >{} };
 
-            return this->make_shader( source, std::move( strid ), phase_, std::format( "\"{}\"", path_.string() ).c_str() );
+            return this->make_shader( std::move( source ), phase_, std::format( "\"{}\"", path_.string() ).c_str() );
         }
 
     } _shader_cache{ this };
@@ -507,7 +502,7 @@ _A113_PROTECTED:
                 pipe = HVec< pipe_t >::make( std::move( strid ), glCreateProgram() );
 
                 A113_ASSERT_OR( GL_NONE != pipe->glidx ) {
-                    A113_LOGE_IMM( "Could not create create PIPE[{}].", pipe->strid );
+                    BridgE->error( "pipe: \"{}\": bad create.", pipe->strid );
                     return nullptr;
                 }
     
@@ -523,7 +518,7 @@ _A113_PROTECTED:
                 A113_ASSERT_OR( GL_FALSE != status ) {
                     GLchar log_buf[ 512 ];
                     glGetProgramInfoLog( pipe->glidx, sizeof( log_buf ), NULL, log_buf );
-                    A113_LOGE_IMM( "Could not link PIPE[{}]: \"{}\".", pipe->strid, pipe->glidx, log_buf );
+                    BridgE->error( "pipe: \"{}\": bad link: \"{}\".", pipe->strid, log_buf );
                     return nullptr;
                 }
 
@@ -536,7 +531,7 @@ _A113_PROTECTED:
                     GLenum  unif_type;
 
                     glGetActiveUniform( pipe->glidx, idx, sizeof( unif_name ), &unif_len, &unif_sz, &unif_type, unif_name );
-                    A113_LOGI_IMM( "Found UNIF[{}] of TYPE[{}] in PIPE[{}].", unif_name, unif_type, pipe->strid );
+                    BridgE->info( "pipe: \"{}\": found uniform: \"{}\".", pipe->strid, unif_name );
 
                     pipe->unifs.emplace( unif_t{
                         .name = unif_name,
@@ -546,9 +541,9 @@ _A113_PROTECTED:
                 }
 
                 _bucket.commit( pipe->strid, pipe );
-                A113_LOGI_IMM( "Created PIPE[{}] from {}.", pipe->strid, from_ );
+                BridgE->info( "pipe: \"{}\": created from: \"{}\".", pipe->strid, from_ );
             } else {
-                A113_LOGI_IMM( "Pulled PIPE[{}] from cache, requested from {}.", pipe->strid, from_ );
+                BridgE->info( "pipe: \"{}\": hit in cache, requested from {}.", pipe->strid, from_ );
             }
 
             return pipe;
@@ -560,10 +555,10 @@ _A113_PROTECTED:
             for( int phase = ShaderPhase_Vertex; phase <= ShaderPhase_Fragment; ++phase ) {
                 if( nullptr == srcs_[ phase ] ) continue;
 
-                shaders[ phase ] = _Cluster->_shader_cache.make_shader( srcs_[ phase ], "", ( ShaderPhase_ )phase, "built-in sources" ).get();
+                shaders[ phase ] = _Cluster->_shader_cache.make_shader( srcs_[ phase ], ( ShaderPhase_ )phase, "direct sources" ).get();
             }
 
-            return this->make_pipe( shaders, "built-in sources" );
+            return this->make_pipe( shaders, "direct sources" );
         }
 
         HVec< pipe_t > make_pipe_from_prefixed_path( const std::filesystem::path& path_ ) {
@@ -609,9 +604,9 @@ _A113_PROTECTED:
 
                 tex = _bucket.commit( strid_, tex_t{ strid_, tex_glidx }, bkt_hdl_ );
                 
-                A113_LOGI_IMM( "Created TEX[{}] from {}.", tex->strid, from_ );
+                BridgE->info( "tex: \"{}\": created from {}.", tex->strid, from_ );
             } else {
-                A113_LOGI_IMM( "Pulled TEX[{}] from cache, requested from {}.", tex->strid, from_ );
+                BridgE->info( "tex: \"{}\": hit in cache, requested from {}.", tex->strid, from_ );
             }
             
             return tex;
@@ -628,7 +623,7 @@ _A113_PROTECTED:
                 unsigned char* img_buf = stbi_load( path_.string().c_str(), &x, &y, &n, 4 );
 
                 A113_ASSERT_OR( img_buf ) {
-                    A113_LOGE_IMM_INT( A113_ERR_OPEN, "Could NOT load texture from {}.", path_.string() );
+                    BridgE->error( "tex: \"{}\": could not load from {}.", strid_, path_.string() );
                     return nullptr;
                 }
 
@@ -932,24 +927,28 @@ public:
     }
 
 public:
-    void engage_face_culling( void ) {
+    A113_inline void engage_face_culling( void ) {
         glEnable( GL_CULL_FACE );
     }
-
-    void disengage_face_culling( void ) {
+    A113_inline void disengage_face_culling( void ) {
         glDisable( GL_CULL_FACE );
     }
 
-    void mode_fill( void ) {
+    A113_inline void mode_fill( void ) {
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
     }
-
-    void mode_wireframe( void ) {
+    A113_inline void mode_wireframe( void ) {
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     }
-
-    void mode_points( void ) {
+    A113_inline void mode_points( void ) {
         glPolygonMode( GL_FRONT_AND_BACK, GL_POINT );
+    }
+
+    A113_inline void engage_depth_test( void ) {
+        glEnable( GL_DEPTH_TEST );
+    }
+    A113_inline void disengage_depth_test( void ) {
+        glDisable( GL_DEPTH_TEST );
     }
 
 public:
@@ -966,12 +965,20 @@ public:
     void push_render_target( ren_target_t* ren_trg_ ) {
         _ren_targs.push( ren_trg_ );
         glBindFramebuffer( GL_FRAMEBUFFER, ren_trg_->_fbo );
+        glViewport( 0, 0, ren_trg_->_w, ren_trg_->_h );
     }
 
     void pop_render_target( void ) {
         _ren_targs.pop();
-        if( not _ren_targs.empty() ) glBindFramebuffer( GL_FRAMEBUFFER, _ren_targs.top()->_fbo );
-        else                         glBindFramebuffer( GL_FRAMEBUFFER, GL_NONE );
+        if( not _ren_targs.empty() ) {
+            auto* ren_targ = _ren_targs.top();
+            glBindFramebuffer( GL_FRAMEBUFFER, ren_targ->_fbo );
+            glViewport( 0, 0, ren_targ->_w, ren_targ->_h );
+        } else {
+            glBindFramebuffer( GL_FRAMEBUFFER, GL_NONE );
+            int w, h; glfwGetFramebufferSize( _glfwnd, &w, &h );
+            glViewport( 0, 0, w, h );
+        }
     }
 
 };
