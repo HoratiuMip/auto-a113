@@ -24,7 +24,6 @@ option( A113_Opt_TargetPlate_uC OFF )
 
 option( A113_Opt_ OFF )
 
-
 message( STATUS "[A113] CMake script begin..." )
 
 if( NOT DEFINED A113_TARGET_PLATE )
@@ -106,6 +105,9 @@ macro( A113_Fnc_CloneRepo url tag alias excom_dir )
     )
     FetchContent_MakeAvailable( ${alias} )
 endmacro( A113_Fnc_CloneRepo )
+
+
+include( CheckIPOSupported )
 
 
 message( STATUS "[A113] Adding the bedrock plate subdirectory." )

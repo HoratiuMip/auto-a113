@@ -359,7 +359,7 @@ public:
     }
 };
 
-char Fastcli::stencil_t::next( void ) {
+inline char Fastcli::stencil_t::next( void ) {
 #define _RET_DONE return 0x0;
 #define _RET_ERR { _ctx->id0 = _ctx->toks.size(); return 0x1; }
 

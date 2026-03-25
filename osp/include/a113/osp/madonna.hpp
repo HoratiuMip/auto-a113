@@ -42,12 +42,20 @@ enum DiscDiffMth_ {
     DiscDiffMth_Tustin
 };
 
+template< typename _FTYPE_v_ > struct vec2_t {
+    _FTYPE_v_   x;
+    _FTYPE_v_   y;
+};
+
+template< typename _FTYPE_v_ > using fnc_1d_t = std::function< _FTYPE_v_( _FTYPE_v_ ) >;
+
 template< typename _FTYPE_v_ > struct tfc_t {
     int        n     = 0;
     int        m     = 0;
     _FTYPE_v_*   den   = nullptr;
     _FTYPE_v_*   num   = nullptr;
 };
+
 
 template< typename _FTYPE_v_ >
 _FTYPE_v_ linspace_n( _FTYPE_v_* v_, int n_, _FTYPE_v_ low_, _FTYPE_v_ upp_ ) {
@@ -64,6 +72,7 @@ _FTYPE_v_ roam_acc_2( _FTYPE_v_* v1_, _FTYPE_v_* v2_, int n_, _FTYPE_v_ acc_, _O
     for( int i = 0; i < n_; ++i ) acc_ += op_( v1_[i], v2_[i] );
     return acc_;
 }
+
 
 template< typename _FTYPE_v_ >
 status_t roots( const _FTYPE_v_* co_, int n_, _FTYPE_v_* rr_, _FTYPE_v_* ri_ ) {
@@ -83,6 +92,7 @@ status_t roots( const _FTYPE_v_* co_, int n_, _FTYPE_v_* rr_, _FTYPE_v_* ri_ ) {
     A113_ASSERT_OR( info == 0x0 ) return A113_ERR_EXCOMCALL;
     return A113_OK;
 }   
+
 
 template< typename _FTYPE_v_ >
 _FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FTYPE_v_* dy_h_, _FTYPE_v_* du_h_, _FTYPE_v_ u_, _FTYPE_v_ t_ ) {
@@ -126,6 +136,58 @@ _FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FT
     }
 
     return dy_h_[ 0x0 ];
+}
+
+
+template< typename _FTYPE_v_ >
+vec2_t< _FTYPE_v_ > search_mf1_elimgr( _FTYPE_v_ a_, _FTYPE_v_ b_, _FTYPE_v_ eps_, int* n_, fnc_1d_t< _FTYPE_v_ > fnc_ ) {
+    if( b_ < a_ ) std::swap( b_, a_ );
+    auto d = b_ - a_;
+
+    int n = 0;
+    while( b_ - a_ >= eps_ ) { ++n;
+        d *= 0.618;
+
+        const auto x1 = b_ - d;
+        const auto x2 = a_ + d;
+
+        if( fnc_( x1 ) <= fnc_( x2 ) )
+            b_ = x2;
+        else
+            a_ = x1;
+    } 
+
+    if( n_ ) *n_ = n;
+
+    const auto x = (a_ + b_) / 2;
+    return { .x = x, .y = fnc_( x ) };
+}
+
+template< typename _FTYPE_v_ >
+vec2_t< _FTYPE_v_ > search_mf1_elimfib( _FTYPE_v_ a_, _FTYPE_v_ b_, _FTYPE_v_ eps_, int* n_, fnc_1d_t< _FTYPE_v_ > fnc_ ) {
+    if( b_ < a_ ) std::swap( b_, a_ );
+
+    auto f1 = _FTYPE_v_{3};
+    auto f2 = _FTYPE_v_{2}; 
+
+    int n = 0;
+    while( b_ - a_ >= eps_ ) { ++n;
+        const auto d  = (b_ - a_) * f2/f1;
+        const auto x1 = b_ - d;
+        const auto x2 = a_ + d;
+
+        if( fnc_( x1 ) <= fnc_( x2 ) )
+            b_ = x2;
+        else
+            a_ = x1;
+
+        f1 += std::exchange( f2, f1 );
+    }
+
+    if( n_ ) *n_ = n;
+    
+    const auto x = (a_ + b_) / 2;
+    return { .x = x, .y = fnc_( x ) };
 }
 
 }

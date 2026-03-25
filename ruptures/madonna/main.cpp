@@ -1,4 +1,4 @@
-#include "config.hpp"
+#include "bridge.hpp"
 
 #include <iostream>
 
@@ -9,7 +9,7 @@ int main( int argc, char* argv[] ) {
         .flags = InitFlags_None
     } );
 
-    BridgE.init();
+    BridgE.init_all();
 
     BridgE.imm.main( argc, argv, clkwrk::Immersive::config_t{
         .ctx        = nullptr,

@@ -102,7 +102,7 @@ struct _model_t {
 static imm::lens_t G_lens;
 
 status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
-    static constexpr float STEP_SZ = 0.1f;
+    static constexpr float STEP_SZ = 0.01f;
     static mdn_2::srf_grid_t< float > grid_f;
 
     static float MSE = 0.0;
@@ -111,11 +111,34 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
     static auto t = mdn_1::linspace_s<float>( 0.01, 0.0, 15.0 );
     static std::vector< float > y;
 
+    static auto A = 0.0f, B = M_PIf;
+    static auto interval = mdn_1::linspace_s< float >( 0.01, A, B );
+    static mdn_1::vec< float > func;
+    static mdn_0::vec2_t< float > func_min_gr;
+    static mdn_0::vec2_t< float > func_min_fib;
+    static float tol_eps = 0.3f;
+
+    static auto f = [] ( float t_ ) static { return sin( t_ ); };
+
+    static auto f2 = [] ( float x1, float x2 ) static {
+        return 10.0*x1*x1 + 6.0*x2*x2 + 8.0*pow(x1,4)*pow(x2,4) + 24;
+    };
+    static float         step = 1.0;
+    static mdn_0::vec2_t sp = { 1.0, .5 };
+    static mdn_0::vec2_t dir = { -1.8, -.5 };
+
+    static auto fxs = [ & ] ( float s_ ) -> float { 
+        return f2( sp.x + s_*dir.x, sp.y + s_*dir.y );
+    };
+
     static auto _do_once_1 = [ & ] () -> char {
         grid_f
-        .span_s( { {STEP_SZ, -5.0f, 5.0f}, {STEP_SZ, -5.0f, 5.0f} } )
-        .apply( [] ( float* x ) -> float {
-            return exp(-0.1 * (x[0] * x[0] + x[1] * x[1])) * sin(2 * x[0]) * cos(2 * x[1]);
+        .span_s( { {STEP_SZ, -1.0f, 1.0f}, {STEP_SZ, -1.0f, 1.0f} } )
+        .apply( [ & ] ( float* x_ ) -> float {
+            const float x1 = x_[0x0];
+            const float x2 = x_[0x1];
+
+            return f2( x1, x2 );
         } );
       
         auto [ vbo, ebo ] = grid_f.gen_VBO_and_EBO(); G_model.count = ebo.size();
@@ -138,6 +161,12 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
         for( int i = 0x0; i < y.size(); ++i ) {
             y[ i ] = tf.step( 1.0, 0.01 );
         }
+
+
+        func.assign( interval.size(), 0x0 );
+        std::transform( interval.begin(), interval.end(), func.begin(), [] ( float t_ ) {
+            return f( t_ );
+        } );  
 
         return 0x0;
     }();
@@ -173,24 +202,38 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
     ImGui::Begin( "Plots" );
 
     ImPlot::PushColormap( ImPlotColormap_Viridis );
-    if( ImPlot::BeginPlot( "tf", {0,0}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {  
-        ImPlot::SetNextLineStyle( { 0.0, 1.0, 1.0, 1.0 }, 2.5 );  
-        ImPlot::PlotLine(
-            "##tf_1", t.data(), y.data(), t.size()
-        );
-        ImPlot::EndPlot();
-    }
-
-    // if( ImPlot::BeginPlot( "f(x,y)", {680,680}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {
-    //     ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_Invert );
-        
-    //     ImPlot::PlotHeatmap(
-    //         "##hm_1", grid_f.raw(), grid_f.n_of(1), grid_f.n_of(0),
-    //         0, 0, nullptr, {-5,-5}, {5,5},
-    //         ImPlotHeatmapFlags_None
+    // if( ImPlot::BeginPlot( "tf", {0,0}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {  
+    //     ImPlot::SetNextLineStyle( { 0.0, 1.0, 1.0, 1.0 }, 2.5 );  
+    //     ImPlot::PlotLine(
+    //         "##tf_1", t.data(), y.data(), t.size()
     //     );
     //     ImPlot::EndPlot();
     // }
+
+    if( ImPlot::BeginPlot( "f(x,y)", {680,680}, ImPlotFlags_Equal | ImPlotFlags_Crosshairs ) ) {
+        ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_None );
+        
+        ImPlot::PlotHeatmap(
+            "##hm_1", grid_f.raw(), grid_f.n_of(1), grid_f.n_of(0),
+            0, 0, nullptr, {-1,-1}, {1,1},
+            ImPlotHeatmapFlags_None
+        );
+
+        float x[2] = { sp.x, sp.x + step*dir.x };
+        float y[2] = { sp.y, sp.y + step*dir.y };
+        ImPlot::SetNextLineStyle( { 1, .36, 0, 1 }, 2.5 );
+        ImPlot::PlotLine( "sliced", x, y, 2 );
+        
+        x[ 0 ] = sp.x + func_min_gr.x*dir.x; x[ 1 ] = sp.y + func_min_gr.x*dir.y;
+        y[ 0 ] = sp.x + func_min_fib.x*dir.x; y[ 1 ] = sp.y + func_min_fib.x*dir.y;
+
+        ImPlot::SetNextLineStyle( { 1, 0, 0, 1 }, 3 );
+        ImPlot::PlotScatter( "gre", x, x+1, 1 );
+        ImPlot::SetNextLineStyle( { 1, 1, 0, 1 }, 3 );
+        ImPlot::PlotScatter( "fibe", y, y+1, 1 );
+
+        ImPlot::EndPlot();
+    }
     ImGui::SameLine();
     ImPlot::ColormapScale(
         "Scale",
@@ -219,6 +262,48 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
     sin_y.push_back( std::sin( ttt ) );
 
     ImGui::End();
+
+
+    ImGui::Begin( "Lab 3 - 1" );
+    if( ImPlot::BeginPlot( "func" ) ) {
+        func_min_gr = mdn_0::search_mf1_elimgr< float >( A, B, tol_eps, nullptr, f );
+        func_min_fib = mdn_0::search_mf1_elimfib< float >( A, B, tol_eps, nullptr, f );
+
+        ImPlot::SetNextLineStyle( { 0, 0, 0, -1 }, 2.5 );
+        ImPlot::PlotLine( "sin(t)", interval.data(), func.data(), interval.size() );
+        ImPlot::SetNextLineStyle( { 0, 0, 0, -1 }, 3 );
+        ImPlot::PlotScatter( "gr", &func_min_gr.x, &func_min_gr.y, 1 );
+        ImPlot::SetNextLineStyle( { 0, 0, 0, -1 }, 3 );
+        ImPlot::PlotScatter( "fib", &func_min_fib.x, &func_min_fib.y, 1 );
+        ImPlot::EndPlot();
+    }
+
+    ImGui::SliderFloat( "Tolerance", &tol_eps, 0.001f, 1.0f );
+    ImGui::End();
+
+    ImGui::Begin( "Lab 3 - 2" );
+    if( ImPlot::BeginPlot( "step" ) ) {
+        func_min_gr = mdn_0::search_mf1_elimgr< float >( 0, step, tol_eps, nullptr, fxs );
+        func_min_fib = mdn_0::search_mf1_elimfib< float >( 0, step, tol_eps, nullptr, fxs );
+
+        auto interval = mdn_1::linspace_n< float >( 1000, 0, step );
+        mdn_1::vec< float > slice; slice.assign( interval.size(), 0x0 );
+        for( int i = 0; i < interval.size(); ++i ) {
+            slice[ i ] = fxs( interval[ i ] );
+        }
+
+        ImPlot::SetNextLineStyle( { 0, 0, 0, -1 }, 2.5 );
+        ImPlot::PlotLine( "x(s)", interval.data(), slice.data(), interval.size() );
+        ImPlot::SetNextLineStyle( { 0, 0, 0, -1 }, 3 );
+        ImPlot::PlotScatter( "gr", &func_min_gr.x, &func_min_gr.y, 1 );
+        ImPlot::SetNextLineStyle( { 0, 0, 0, -1 }, 3 );
+        ImPlot::PlotScatter( "fib", &func_min_fib.x, &func_min_fib.y, 1 );
+        ImPlot::EndPlot();
+    }
+
+    ImGui::SliderFloat( "Tolerance", &tol_eps, 0.001f, 1.0f );
+    ImGui::End();
+
 
     if( not ImGui::GetIO().WantCaptureMouse ) {
         static bool dwn = false;
