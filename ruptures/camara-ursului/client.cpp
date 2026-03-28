@@ -5,26 +5,69 @@ struct Client {
     std::string           _token     = {};
 
     atomic_bool           _running   = { false };
-    thread                _rx_th     = {};
 
-    int _rx_main( void ) {
+    struct _recv_handler_t {
+        thread                   th_main;
+
+        condition_variable       resp_cv;
+        mutex                    resp_mtx;
+        HVec< nlohmann::json >   resp_json;
+
+        HVec< nlohmann::json > await_response( int s_ ) {
+            unique_lock lck{ resp_mtx };
+            CU_ASSERT_OR( cv_status::no_timeout == resp_cv.wait_for( lck, chrono::seconds{ s_ } ) ) return nullptr; 
+            return move( resp_json );
+        }
+    }                     _recv_handler;
+
+    void _recv_handler_main( void ) {
         for(; _running.load( memory_order_relaxed ); ) {
-            char buf[ 256 ];
-            int  bc = 0;
+            nlohmann::json json;
+            try {
+                CU_ASSERT_OR( A113_OK == CU_await( _server, &json ) ) continue;
+            } 
+            catch( const nlohmann::json::parse_error& err_ ) {
+                spdlog::error( "{}", err_.what() );
+                continue;
+            } catch( const runtime_error& err_ ) {
+                spdlog::error( "{}", err_.what() );
+                continue;
+            } catch( ... ) {
+                spdlog::error( "unknown server error" );
+                continue;
+            }
 
-            _server.read( {
-                .dst_ptr    = buf,
-                .dst_n      = sizeof( buf ),
-                .byte_count = &bc
-            } );
+            auto verb = json.find( "verb" ); 
+            CU_ASSERT_OR( verb != json.end() && verb->is_string() && not verb->empty() ) {
+                spdlog::error( "verb: invalid" );
+                continue;
+            }
 
-            if( bc > 0 ) {
-                spdlog::info( "RX: \"{}\"", string{ buf, bc } );
+            switch( verb->get_ref< string& >()[ 0x0 ] ) {
+                case '6': {
+                    lock_guard lck{ _recv_handler.resp_mtx };
+                    _recv_handler.resp_json = HVec< nlohmann::json >::make( move( json ) );
+                    _recv_handler.resp_cv.notify_one();
+                break; }
+
+                case '7': {
+                    spdlog::info( "{}", json.dump(4) );
+                break; }
             }
         }
     }
 
-    text::Fastcli   fastcli   = {
+    void _terminate( void ) {
+        _running.store( false, memory_order_release );
+        _server.disconnect();
+    {
+        unique_lock lck{ _recv_handler.resp_mtx };
+        _recv_handler.resp_cv.notify_one();
+    }
+        if( _recv_handler.th_main.joinable() ) _recv_handler.th_main.join();
+    }
+
+    text::Fastcli fastcli = {
         {}, {
             {
                 .text = "connect",
@@ -58,12 +101,15 @@ struct Client {
                         stencil_ += "Failed to connect to the given address.";
                         return A113_ERR_ENGINECALL;
                     }
+
+                    _running.store( true, memory_order_release );
+                    _recv_handler.th_main = thread{ &Client::_recv_handler_main, this };
                     return A113_OK;
                 }
             }, {
                 .text = "disconnect",
                 .fnc = [ this ] ( auto& stencil_ ) -> auto {
-                    _server.disconnect();
+                    this->_terminate();
                     return A113_OK;
                 }
             }, {
@@ -73,7 +119,7 @@ struct Client {
                 },
                 .fnc = [ this ] ( auto& stencil_ ) -> auto {
                     nlohmann::json req{
-                        { "verb", "register" }
+                        { "verb", "5register" }
                     };
 
                     char opt; while( opt = stencil_.next() ) {
@@ -82,20 +128,21 @@ struct Client {
                         }
                     }
 
-                    nlohmann::json resp;
-                    CU_ASSERT_OR( A113_OK == CU_request( _server, req.dump(), &resp ) ) {
+                    CU_ASSERT_OR( A113_OK == CU_request( _server, req ) ) {
                         stencil_ += "Request error.";
                         return A113_ERR_FLOW;
                     };
+                    auto resp = _recv_handler.await_response( CU_DEFAULT_CLIENT_REQ_TIMEOUT_S );
+                    CU_ASSERT_OR( resp ) return A113_ERR_FLOW;
                     
-                    auto token = resp.find( "token" );
-                    CU_ASSERT_OR( token != resp.end() ) {
+                    auto token = resp->find( "token" );
+                    CU_ASSERT_OR( token != resp->end() ) {
                         stencil_ += "Response packet with no token.";
                         return A113_ERR_FLOW;
                     }
                     _token = *token;
 
-                    stencil_ += resp.dump(4);
+                    stencil_ += resp->dump(4);
                     return A113_OK;
                 }
             }, {
@@ -105,7 +152,7 @@ struct Client {
                 },
                 .fnc = [ this ] ( auto& stencil_ ) -> auto {
                     nlohmann::json req{
-                        { "verb", "snoop" },
+                        { "verb", "5snoop" },
                         { "token", _token }
                     };
 
@@ -115,13 +162,14 @@ struct Client {
                         }
                     }
 
-                    nlohmann::json resp;
-                    CU_ASSERT_OR( A113_OK == CU_request( _server, req.dump(), &resp ) ) {
+                    CU_ASSERT_OR( A113_OK == CU_request( _server, req ) ) {
                         stencil_ += "Request error.";
                         return A113_ERR_FLOW;
                     };
+                    auto resp = _recv_handler.await_response( CU_DEFAULT_CLIENT_REQ_TIMEOUT_S );
+                    CU_ASSERT_OR( resp ) return A113_ERR_FLOW;
                     
-                    stencil_ += resp.dump(4);
+                    stencil_ += resp->dump(4);
                     return A113_OK;
                 }
             }, {
@@ -131,7 +179,7 @@ struct Client {
                 },
                 .fnc = [ this ] ( auto& stencil_ ) -> auto {
                     nlohmann::json req{
-                        { "verb", "ur" },
+                        { "verb", "7ur" },
                         { "token", _token }
                     };
 
@@ -141,13 +189,14 @@ struct Client {
                         }
                     }
 
-                    nlohmann::json resp;
-                    CU_ASSERT_OR( A113_OK == CU_request( _server, req.dump(), &resp ) ) {
+                    CU_ASSERT_OR( A113_OK == CU_request( _server, req ) ) {
                         stencil_ += "Request error.";
                         return A113_ERR_FLOW;
                     };
+                    auto resp = _recv_handler.await_response( CU_DEFAULT_CLIENT_REQ_TIMEOUT_S );
+                    CU_ASSERT_OR( resp ) return A113_ERR_FLOW;
                     
-                    stencil_ += resp.dump(4);
+                    stencil_ += resp->dump(4);
                     return A113_OK;
                 }
             }

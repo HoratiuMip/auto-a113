@@ -108,59 +108,53 @@ struct Server {
             lock_guard lck{ _unsubs_mtx };
 
             for( auto u_itr = _unsubs_list.begin(); u_itr != _unsubs_list.end(); ) {
-                time_t    t_now = time( nullptr );
-                client_t& unsub = **u_itr;
-
-                char buffer[ CU_MAX_PACKET_SIZE ];
-                int  byte_count      = 0x0;
-                int  bytes_available = -0x1;
+                time_t    t_now           = time( nullptr );
+                client_t& unsub           = **u_itr;
+                int       bytes_available = -0x1;
 
                 if( t_now - unsub.last_xchg >= CU_DEFAULT_SERVER_UNSUBS_HOLD_TIME_S ) goto l_terminate_unsub;
-
+                
                 if( A113_OK == unsub.sock.holding_rx( &bytes_available ) ) {
                     if( bytes_available <= 0 ) goto l_itr_inc;
                 } else goto l_unsub_op_fail;
 
-                CU_ASSERT_OR( A113_OK == unsub.sock.read( {
-                    .dst_ptr    = buffer,
-                    .dst_n      = CU_MAX_PACKET_SIZE,
-                    .byte_count = &byte_count,
-                    .req_all    = false,
-                    .req_time   = true
-                } ) && byte_count > 0x0 ) goto l_unsub_op_fail;
-                
-                unsub.last_xchg = time( nullptr );
                 try {
-                    auto json = nlohmann::json::parse( buffer, buffer + byte_count );
+                    nlohmann::json json;
+                    CU_ASSERT_OR( A113_OK == CU_await( unsub.sock, &json ) ) goto l_unsub_op_fail;
+                    unsub.last_xchg = time( nullptr );
+
                     auto verb = json.find( "verb" );
-                    CU_ASSERT_OR( verb != json.end() && verb->is_string() ) goto l_terminate_unsub;
+                    CU_PROTOCOL_ASSERT( verb != json.end() && verb->is_string(), "no verb" );
 
                     switch( text::hash( *verb ) ) {
-                        case text::hash( "register" ): {
+                        case text::hash( "5register" ): {
                             unsub.name = move( json[ "name" ].get_ref< string& >() );
-                            CU_ASSERT_OR( not unsub.name.empty() ) throw runtime_error{ "verb: register: empty name" };
+                            CU_PROTOCOL_ASSERT( not unsub.name.empty(), "verb: register: empty name" );
 
                             unsub.token = HVec< token_t >::make();
                             unsub.token->populate( unsub );
 
                             CU_ASSERT_OR( A113_OK == CU_respond( unsub.sock, nlohmann::json{
+                                { "verb", "6register" },
                                 { "msg", std::format( "Welcome to Camara Ursului, {}!", unsub.name ) },
                                 { "token", unsub.token->value }
-                            }.dump() ) ) goto l_unsub_op_fail;
+                            } ) ) goto l_unsub_op_fail;
                         break; }
 
-                        case text::hash( "snoop" ): {
-                            CU_ASSERT_OR( unsub.token ) throw runtime_error{ "verb: snoop: unregistered token" };
+                        case text::hash( "5snoop" ): {
+                            CU_PROTOCOL_ASSERT( unsub.token, "verb: snoop: unregistered token" );
+
                             string token = move( json[ "token" ].get_ref< string& >() );
-                            CU_ASSERT_OR( *unsub.token == token ) throw runtime_error( "verb: snoop: invalid token" );
+                            CU_PROTOCOL_ASSERT( *unsub.token == token, "verb: snoop: invalid token" );
 
                             string pan_tag = move( json[ "tag" ].get_ref< string& >() );
-                            CU_ASSERT_OR( not pan_tag.empty() ) throw runtime_error{ "verb: snoop: empty pantry tag" };
+                            CU_PROTOCOL_ASSERT( not pan_tag.empty(), "verb: snoop: empty pantry tag" );
 
                             auto pan = _create_or_get_pantry( pan_tag );
                             CU_ASSERT_OR( A113_OK == CU_respond( unsub.sock, nlohmann::json{
+                                { "verb", "6snoop" },
                                 { "msg", std::format( "Snooping pantry #{}.", pan_tag ) },
-                            }.dump() ) ) goto l_terminate_unsub;
+                            } ) ) goto l_terminate_unsub;
                         {
                             lock_guard lck{ pan->clients_mtx };
                             pan->clients_list.emplace_back( move( *u_itr ) );
@@ -210,43 +204,36 @@ struct Server {
                 pan.last_idle = 0x0;
             }
 
-            ranges::remove_if( pan.clients_list, [ this, &pan ] ( HVec< client_t >& client_ ) -> bool {
-                client_t& client = *client_;
-
-                char buffer[ CU_MAX_PACKET_SIZE ];
-                int  byte_count      = 0;
-                int  bytes_available = 0;
+            ranges::remove_if( pan.clients_list, [ this, &pan, t_now ] ( HVec< client_t >& client_ ) -> bool {
+                client_t& client          = *client_;
+                int       bytes_available = 0;
                 
                 if( A113_OK == client.sock.holding_rx( &bytes_available ) ) {
                     if( bytes_available <= 0 ) goto l_keep_client;
                 } else goto l_client_op_fail;
 
-                CU_ASSERT_OR( A113_OK == client.sock.read( {
-                    .dst_ptr    = buffer,
-                    .dst_n      = CU_MAX_PACKET_SIZE,
-                    .byte_count = &byte_count,
-                    .req_all    = false,
-                    .req_time   = true
-                } ) && byte_count > 0x0 ) goto l_client_op_fail;
-
                 try {
-                    auto json = nlohmann::json::parse( buffer, buffer + byte_count );
+                    nlohmann::json json;
+                    CU_ASSERT_OR( A113_OK == CU_await( client.sock, &json ) ) goto l_client_op_fail;
+                    client.last_xchg = t_now;
+
                     auto verb = json.find( "verb" );
-                    CU_ASSERT_OR( verb != json.end() && verb->is_string() ) goto l_terminate_client;
+                    CU_PROTOCOL_ASSERT( verb != json.end() && verb->is_string(), "no verb" );
 
                     switch( text::hash( *verb ) ) {
-                        case text::hash( "ur" ): {
-                            CU_ASSERT_OR( json.contains( "text" ) ) goto l_terminate_client;
+                        case text::hash( "7ur" ): {
+                            string txt = move( json[ "text" ].get_ref< string& >() );
+                            CU_PROTOCOL_ASSERT( not txt.empty(), "verb: ur: no or empty text" );
                             
-                            string json_dump = nlohmann::json{
-                                { "verb", "ur_cast" },
+                            nlohmann::json json = {
+                                { "verb", "7ur" },
                                 { "fox", client.name },
-                                { "text", json[ "text" ] }
-                            }.dump();
+                                { "text", move( txt ) }
+                            };
 
-                            for( auto& other_client : pan.clients_list ) {
-                                CU_ASSERT_OR( A113_OK == CU_respond( other_client->sock, json_dump ) ) 
-                                    ++other_client->failed_ops;
+                            for( auto& client : pan.clients_list ) {
+                                CU_ASSERT_OR( A113_OK == CU_respond( client->sock, json ) ) 
+                                    ++client->failed_ops;
                             }
                         break; }
                     }
