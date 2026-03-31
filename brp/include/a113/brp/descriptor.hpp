@@ -78,6 +78,7 @@ typedef   int   status_t;
 #define A113_ERR_BUSY         -0xC
 #define A113_ERR_NOT_FOUND    -0xD
 #define A113_ERR_ENGINECALL   -0xE
+#define A113_ERR_TIMEOUT      -0xF
 
 inline static const char* const status_msgs[] = {
     "OK",

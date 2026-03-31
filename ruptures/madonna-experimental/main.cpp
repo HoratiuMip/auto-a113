@@ -183,10 +183,10 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
 
     G_model.pipew->use_program();
     G_model.pipew->upload_unif( "unif_PV", PV );
-    G_model.pipew->upload_unif( "unif_off", 0.01 );
+    G_model.pipew->upload_unif( "unif_off", 0.01f );
     Imm.cluster().mode_wireframe();
     glDrawElements(GL_TRIANGLES, G_model.count, GL_UNSIGNED_INT, 0);
-    G_model.pipew->upload_unif( "unif_off", -0.01 );
+    G_model.pipew->upload_unif( "unif_off", -0.01f );
     glDrawElements(GL_TRIANGLES, G_model.count, GL_UNSIGNED_INT, 0);
 
     G_model.pipeb->use_program();
@@ -347,7 +347,7 @@ int main( int argc, char* argv[] ) {
             G_lens >= glm::vec3{ 0, 0, 0 };
             G_lens ^= glm::vec3{ 0, 1, 0 };
 
-            G_model.ren_targ.bind( 680, 680 );
+            G_model.ren_targ.bind( {680, 680} );
             
             return A113_OK;
         },

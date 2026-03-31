@@ -13,7 +13,7 @@ namespace a113 { namespace imm {
 void ren_target_t::bind( void ) {
     glGenTextures  ( 1, &_tex_glidx );
     glBindTexture  ( GL_TEXTURE_2D, _tex_glidx );
-    glTexImage2D   ( GL_TEXTURE_2D, 0, GL_RGBA, _w, _h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
+    glTexImage2D   ( GL_TEXTURE_2D, 0, GL_RGBA, _r.x, _r.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
     glBindTexture  ( GL_TEXTURE_2D, GL_NONE );
@@ -25,7 +25,7 @@ void ren_target_t::bind( void ) {
 
     glGenRenderbuffers   ( 1, &_rbo );
     glBindRenderbuffer   ( GL_RENDERBUFFER, _rbo );
-    glRenderbufferStorage( GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, _w, _h );
+    glRenderbufferStorage( GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, _r.x, _r.y );
     glBindRenderbuffer   ( GL_RENDERBUFFER, GL_NONE );
 
     glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, _rbo );

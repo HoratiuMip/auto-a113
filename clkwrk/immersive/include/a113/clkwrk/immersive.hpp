@@ -74,10 +74,10 @@ _A113_PROTECTED:
     struct _assets_t {
         /**
          * @brief A perlin noise splasher.
-         * @details Classic Perlin 2D Noise by Stefan Gustavson (https://github.com/stegu/webgl-noise)
+         * @details Perlin by XorDev: https://x.com/XorDev/status/1894123951401378051.
          */
         struct idle_splash_t {
-            inline static float          vrtx[]   = { 1,1,0, 1,-1,0, -1,-1,0, -1,1,0 };
+            inline static float          vrtx[]   = { 1,1, 1,-1, -1,-1, -1,1 };
             inline static unsigned int   idx[]    = { 0,1,3, 1,2,3 };
             GLuint                       VAO      = GL_NONE;
             GLuint                       VBO      = GL_NONE;

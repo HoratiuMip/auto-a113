@@ -75,8 +75,16 @@ struct unif_t {
 
     bool operator < ( const unif_t& other_ ) const { return name < other_.name; }
     
+    A113_inline status_t upload( const glm::i32& i_ ) const {
+        glUniform1i( loc, i_ );
+        return A113_OK;
+    }
     A113_inline status_t upload( const glm::f32& f_ ) const {
         glUniform1f( loc, f_ );
+        return A113_OK;
+    }
+    A113_inline status_t upload( const glm::vec<2,int> iv_ ) const {
+        glUniform2i( loc, iv_.x, iv_.y );
         return A113_OK;
     }
     A113_inline status_t upload( const glm::mat4& mat_ ) const {
@@ -141,8 +149,8 @@ struct tex_t {
 struct ren_target_t {
     ren_target_t( void ) = default;
 
-    ren_target_t( int w_, int h_ ) 
-    : _w{ w_ }, _h{ h_ }
+    ren_target_t( glm::vec< 2, int > r_ ) 
+    : _r{ r_ }
     {
         this->bind();
     }
@@ -153,16 +161,15 @@ struct ren_target_t {
         if( GL_NONE != _rbo )       { glDeleteRenderbuffers( 1, &_rbo );  std::exchange( _rbo, GL_NONE ); }
     }
 
-    GLuint   _tex_glidx   = GL_NONE;
-    GLuint   _fbo         = GL_NONE;
-    GLuint   _rbo         = GL_NONE;
-    int      _w           = 0;
-    int      _h           = 0;
-
+    GLuint               _tex_glidx   = GL_NONE;
+    GLuint               _fbo         = GL_NONE;
+    GLuint               _rbo         = GL_NONE;
+    glm::vec< 2, int >   _r           = {};
+    
     void bind( void );
 
-    void bind( int w_, int h_ ) {
-        _w = w_; _h = h_; this->bind();
+    void bind( glm::vec< 2, int > r_ ) {
+        _r = r_; this->bind();
     }
 };
 
@@ -965,7 +972,7 @@ public:
     void push_render_target( ren_target_t* ren_trg_ ) {
         _ren_targs.push( ren_trg_ );
         glBindFramebuffer( GL_FRAMEBUFFER, ren_trg_->_fbo );
-        glViewport( 0, 0, ren_trg_->_w, ren_trg_->_h );
+        glViewport( 0, 0, ren_trg_->_r.x, ren_trg_->_r.y );
     }
 
     void pop_render_target( void ) {
@@ -973,12 +980,28 @@ public:
         if( not _ren_targs.empty() ) {
             auto* ren_targ = _ren_targs.top();
             glBindFramebuffer( GL_FRAMEBUFFER, ren_targ->_fbo );
-            glViewport( 0, 0, ren_targ->_w, ren_targ->_h );
+            glViewport( 0, 0, ren_targ->_r.x, ren_targ->_r.y );
         } else {
             glBindFramebuffer( GL_FRAMEBUFFER, GL_NONE );
             int w, h; glfwGetFramebufferSize( _glfwnd, &w, &h );
             glViewport( 0, 0, w, h );
         }
+    }
+
+public:
+    glm::vec< 2, int > bot_ri( void ) {
+        int wnd_w, wnd_h;
+        glfwGetFramebufferSize( _glfwnd, &wnd_w, &wnd_h );
+        return { wnd_w, wnd_h };
+    }
+
+    glm::vec< 2, int > top_ri( void ) {
+        return _ren_targs.empty() ? this->bot_ri() : _ren_targs.top()->_r;
+    }
+
+public:
+    A113_inline double uptime( void ) {
+        return glfwGetTime();
     }
 
 };
