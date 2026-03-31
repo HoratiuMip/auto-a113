@@ -44,6 +44,14 @@
 #endif
 
 
+#define A113_IN
+#define A113_OUT
+#define A113_IN_OPT
+#define A113_OUT_OPT
+#define A113_IN_OUT
+#define A113_IN_OUT_OPT
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,23 +83,13 @@ typedef   int   status_t;
 #define A113_ERR_NOT_FOUND    -0xD
 #define A113_ERR_ENGINECALL   -0xE
 #define A113_ERR_TIMEOUT      -0xF
+#define A113_ERR_TERMINATED   -0x10
 
 inline static const char* const status_msgs[] = {
-    "OK",
-    "GENERAL",
-    "SYSCALL",
-    "WOULD_OVRWR",
-    "OPEN",
-    "EXCOMCALL",
-    "LOGIC",
-    "USERCALL",
-    "PLATFORMCALL",
-    "BADARG",
-    "FLOW",
-    "NOT_IMPL",
-    "BUSY",
-    "NOT_FOUND",
-    "ENGINECALL"
+    "OK", "GENERAL", "SYSCALL", "WOULD_OVRWR", "OPEN",
+    "EXCOMCALL", "LOGIC", "USERCALL", "PLATFORMCALL", "BADARG",
+    "FLOW", "NOT_IMPL", "BUSY", "NOT_FOUND", "ENGINECALL",
+    "TERMINATED"
 };
 #define A113_STATUS_MSG( s ) (a113::status_msgs[-(s)])
 

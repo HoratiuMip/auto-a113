@@ -90,11 +90,14 @@ _A113_PROTECTED:
     void _clean_assets( void );
 
 public:
-    status_t assets_idle_splash_render( void );
+    status_t assets_idle_splash_render( const frame_cb_args_t& args_ );
 
 public:
     A113_inline imm::Cluster& cluster( void ) {
         return *_cluster;
+    }
+    A113_inline auto* operator -> ( void ) {
+        return _cluster.get();
     }
 
     A113_inline imm::lens_t lens_0( void ) {

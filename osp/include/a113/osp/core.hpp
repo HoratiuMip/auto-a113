@@ -156,6 +156,23 @@ A113_inline void set_log_level( LogComponent_ comp_, spdlog::level::level_enum l
 } 
 
 
+struct bridge_t {
+public:
+    bridge_t( 
+        A113_IN   const std::string&   logger_name_ 
+    ) {
+        logger = spdlog::stdout_color_mt( logger_name_ ); 
+        logger->set_pattern( A113_SPDLOG_PATTERN );
+    }
+
+_A113_PROTECTED:
+    HVec< spdlog::logger >   logger   = nullptr;
+
+public:
+    A113_inline spdlog::logger* operator -> ( void ) { return logger.get(); }
+};
+
+
 struct on_scope_exit_c_t {
     typedef   void(*proc_t)(void*);
     on_scope_exit_c_t( proc_t proc_, void* arg_ = NULL ) : _proc{ ( proc_t&& )proc_ }, _arg{ arg_ } {}

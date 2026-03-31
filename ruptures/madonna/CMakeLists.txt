@@ -6,12 +6,16 @@ project(
     LANGUAGES C CXX
 )
 
+file( GLOB srcs "${CMAKE_CURRENT_LIST_DIR}/docks/*.cpp" )
+
 add_executable( ${PROJECT_NAME} 
     "${CMAKE_CURRENT_LIST_DIR}/main.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/south.cpp"
+    "${srcs}"
 )
 target_link_libraries( ${PROJECT_NAME} 
     PUBLIC A113_OSp 
     PUBLIC A113_ClkWrk_immersive
 )
+
+target_include_directories( ${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/" )
 

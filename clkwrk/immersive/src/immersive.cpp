@@ -80,12 +80,12 @@ void Immersive::_clean_assets( void ) {
 }
 }
 
-status_t Immersive::assets_idle_splash_render( void ) {
+status_t Immersive::assets_idle_splash_render( const frame_cb_args_t& args_ ) {
     _cluster->disengage_depth_test();
     _cluster->mode_fill();
 
     _assets.idle_splash.pipe->use_program();
-    _assets.idle_splash.pipe->upload_unif( "rtc", (float)_cluster->uptime() );
+    _assets.idle_splash.pipe->upload_unif( "rtc", (float)args_.t );
     _assets.idle_splash.pipe->upload_unif( "res", _cluster->top_ri() );
 
     glBindVertexArray( _assets.idle_splash.VAO );
@@ -121,7 +121,7 @@ status_t Immersive::main( int argc_, char* argv_[], const config_t& config_ ) {
     GLFWwindow* window = glfwCreateWindow( config.width, config.height, config.title, nullptr, nullptr );
 
     A113_ASSERT_OR( window ) { _logger->error( "main: bad window handle." ); return A113_ERR_EXCOMCALL; }
-    _logger->info( "main: window handle OK." );
+    _logger->info( "main: window created." );
 
     glfwMakeContextCurrent( window );
     
@@ -145,13 +145,13 @@ status_t Immersive::main( int argc_, char* argv_[], const config_t& config_ ) {
     imgui.io  = &ImGui::GetIO();
     imgui.stl = &ImGui::GetStyle();
 
-    _logger->info( "main: imgui OK." );
+    _logger->info( "main: imgui started." );
     
     if     ( SrfBeginAs_Iconify == config.srf_bgn_as ) glfwIconifyWindow( window );
     else if( SrfBeginAs_Hide    == config.srf_bgn_as ) glfwHideWindow( window );
 
     this->_init_assets();
-    _logger->info( "main: init assets OK." );
+    _logger->info( "main: initialized assets." );
 
     if( config.init_cb ) {
         _logger->info( "main: invoke init callback..." );
@@ -161,13 +161,13 @@ status_t Immersive::main( int argc_, char* argv_[], const config_t& config_ ) {
             _logger->error( "main: aborted by init callback." );
             return A113_ERR_USERCALL;
         } else {
-            _logger->info( "main: init callback OK." );
+            _logger->info( "main: init callback done." );
         }
     } else {
         _logger->info( "main: no init callback to invoke." );
     }
     
-    _logger->info( "main: init OK. Diving the loop..." );
+    _logger->info( "main: init done. Diving the loop..." );
 
     glViewport( 0, 0, config.width, config.height );
 
@@ -206,7 +206,7 @@ l_end:
     } );
 
     this->_clean_assets();
-    _logger->info( "main: clean assets OK." );
+    _logger->info( "main: cleaned assets." );
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -215,7 +215,7 @@ l_end:
 
     glfwDestroyWindow( window );
 
-    _logger->info( "main: shutdown OK." );
+    _logger->info( "main: shutdown." );
     return A113_OK;
 }
 
