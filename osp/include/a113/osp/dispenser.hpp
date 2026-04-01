@@ -11,7 +11,9 @@
 namespace a113 {
 
 enum DispenserMode_ {
-    DispenserMode_Lock, DispenserMode_Drop, DispenserMode_Swap, DispenserMode_ReverseSwap
+    DispenserMode_Lock, DispenserMode_Trylock,
+    DispenserMode_Drop, 
+    DispenserMode_Swap, DispenserMode_ReverseSwap,
 };
 
 template< typename _T_, bool _IS_CONTROL_ > struct _dispenser_acquire;
@@ -34,29 +36,14 @@ public:
     using control_t   = _dispenser_acquire< _T_, true >;
 
 public:
-    Dispenser( const DispenserMode_ mode_, const dispenser_config_t& config_ = {} ) : _mode{ mode_ }, _config{ config_ }, _M_{ mode_ } {
-        switch( _mode ) {
-            case DispenserMode_Lock: {
-                _M_.lock.block = HVec< _T_ >::make();
-                new ( &_M_.lock.mtx ) std::shared_mutex{};
-            break; }
-            case DispenserMode_Drop: { 
-                new ( &_M_.drop.block ) HVec< _T_ >{ HVec< _T_ >::make() };
-            break; }
-            case DispenserMode_Swap: [[fallthrough]];
-            case DispenserMode_ReverseSwap: {
-                _M_.swap.blocks[ 0x0 ] = HVec< _T_ >::make();
-                _M_.swap.blocks[ 0x1 ] = HVec< _T_ >::make();
-                new ( &_M_.swap.mtxs[ 0x0 ] ) std::shared_mutex{};
-                new ( &_M_.swap.mtxs[ 0x1 ] ) std::shared_mutex{};
-                _M_.swap.ctl_idx.store( 0x0, std::memory_order_release );
-            break; }
-        }
-    }
+    Dispenser( const DispenserMode_ mode_, const dispenser_config_t& config_ = {} ) 
+    : _mode{ mode_ }, _config{ config_ }, _M_{ mode_ } 
+    {}
 
     ~Dispenser( void ) {
         switch( _mode ) {
-            case DispenserMode_Lock: {
+            case DispenserMode_Lock: [[fallthrough]];
+            case DispenserMode_Trylock: {
                 _M_.lock.~_lock_mode_t();
             break; }
             case DispenserMode_Drop: {
@@ -76,7 +63,8 @@ _A113_PROTECTED:
     union _M_t { 
         _M_t( const DispenserMode_ mode_ ) {
             switch( mode_ ) {
-                case DispenserMode_Lock: 
+                case DispenserMode_Lock: [[fallthrough]];
+                case DispenserMode_Trylock:
                     new ( &lock.block ) HVec< _T_ >      { HVec< _T_ >::make() };
                     new ( &lock.mtx )   std::shared_mutex{};
                     break;
@@ -85,11 +73,11 @@ _A113_PROTECTED:
                     break;
                 case DispenserMode_Swap: [[fallthrough]];
                 case DispenserMode_ReverseSwap:
-                    new ( &swap.blocks[ 0x0 ] ) HVec< _T_ >      { HVec< _T_ >::make() };
-                    new ( &swap.blocks[ 0x1 ] ) HVec< _T_ >      { HVec< _T_ >::make() };
-                    new ( &swap.mtxs[ 0x0 ] )   std::shared_mutex{};
-                    new ( &swap.mtxs[ 0x1 ] )   std::shared_mutex{};
-                    new ( &swap.ctl_idx )       uint8_t          { 0x0 };
+                    new ( &swap.blocks[ 0x0 ] ) HVec< _T_ >         { HVec< _T_ >::make() };
+                    new ( &swap.blocks[ 0x1 ] ) HVec< _T_ >         { HVec< _T_ >::make() };
+                    new ( &swap.mtxs[ 0x0 ] )   std::shared_mutex   {};
+                    new ( &swap.mtxs[ 0x1 ] )   std::shared_mutex   {};
+                    new ( &swap.ctl_idx )       std::atomic_uint8_t { 0x0 };
                     break;
             }
         } 
@@ -128,7 +116,8 @@ public:
 public:
     [[nodiscard]] A113_inline HVec< _T_ > hold_latest( void ) {
         switch( _mode ) {
-            case DispenserMode_Lock: return _M_.lock.block;
+            case DispenserMode_Lock: [[fallthrough]];
+            case DispenserMode_Trylock: return _M_.lock.block;
             case DispenserMode_Drop: return _M_.drop.block;
             case DispenserMode_Swap: [[fallthrough]];
             case DispenserMode_ReverseSwap: return _M_.swap.blocks[ _M_.swap.ctl_idx.load( std::memory_order_relaxed ) ];
@@ -147,6 +136,13 @@ public:
                     _disp->_M_.lock.mtx.lock();
                 } else {
                     _disp->_M_.lock.mtx.lock_shared();
+                }
+            break; }
+            case DispenserMode_Trylock: {
+                if constexpr( _IS_CONTROL_ ) {
+                    _disp->_M_.lock.mtx.lock();
+                } else {
+                    _M_.trylock.acq = _disp->_M_.lock.mtx.try_lock_shared();
                 }
             break; }
             case DispenserMode_Drop: {
@@ -198,6 +194,8 @@ public:
         switch( _disp->_mode ) {
             case DispenserMode_Lock: {
             break; }
+            case DispenserMode_Trylock: {
+            break; }
             case DispenserMode_Drop: {
                 _M_.drop.block = std::move( other_._M_.drop.block );
             break; }
@@ -221,6 +219,13 @@ public:
                     _disp->_M_.lock.mtx.unlock();
                 } else {
                     _disp->_M_.lock.mtx.unlock_shared();
+                }
+            break; }
+            case DispenserMode_Trylock: {
+                if constexpr( _IS_CONTROL_ ) {
+                    _disp->_M_.lock.mtx.unlock();
+                } else {
+                    if( std::exchange( _M_.trylock.acq, false ) ) _disp->_M_.lock.mtx.unlock_shared();
                 }
             break; }
             case DispenserMode_Drop: {
@@ -270,6 +275,9 @@ _A113_PROTECTED:
         _M_t( const DispenserMode_ mode_ ) {
             switch( mode_ ) {
                 case DispenserMode_Lock: break;
+                case DispenserMode_Trylock:
+                    new ( &trylock.acq ) bool{ false };
+                    break;
                 case DispenserMode_Drop:
                     new ( &drop.block ) HVec< _T_ >{ HVec< _T_ >::make() };
                     break;
@@ -282,8 +290,9 @@ _A113_PROTECTED:
         } 
         ~_M_t( void ) {}
 
-        struct _lock_mode_t {
-        } lock;
+        struct _trylock_mode_t {
+            bool   acq;
+        } trylock;
         struct _drop_mode_t {
             HVec< _T_ >   block;
         } drop;
@@ -296,7 +305,8 @@ _A113_PROTECTED:
 public:
     A113_inline _T_* get( void ) {
         switch( _disp->_mode ) {
-            case DispenserMode_Lock: return _disp->_M_.lock.block.get();
+            case DispenserMode_Lock: [[fallthrough]];
+            case DispenserMode_Trylock: return _disp->_M_.lock.block.get();
             case DispenserMode_Drop: return _M_.drop.block.get();
             case DispenserMode_Swap: [[fallthrough]];
             case DispenserMode_ReverseSwap: return _M_.swap.block;
@@ -307,6 +317,14 @@ public:
 public:
     A113_inline _T_* operator -> ( void ) { return this->get(); }
     A113_inline _T_& operator * ( void ) { return *this->get(); }
+
+public:
+    A113_inline operator bool ( void ) {
+        switch( _disp->_mode ) {
+            case DispenserMode_Trylock: return _M_.trylock.acq;
+        }
+        return true;
+    }
 
 };
 

@@ -173,7 +173,7 @@ status_t ui_frame( const clkwrk::Immersive::frame_cb_args_t& args_ ) {
 
     const glm::mat4 PV = glm::perspective( (float)M_PI/3, 1.0f, 0.1f, 1000.0f ) * G_lens.view();
 
-    Imm.assets_idle_splash_render();
+    Imm.assets_idle_splash_render( args_ );
 
     Imm.cluster().push_render_target( &G_model.ren_targ );
     glClearColor( 0.1f, 0.1f, 0.1f, 1.0f );

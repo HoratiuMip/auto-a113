@@ -1,6 +1,7 @@
 #pragma once
 
 #include <a113/gep/fastcli.hpp>
+#include <a113/osp/dispenser.hpp>
 #include <a113/osp/madonna.hpp>
 
 #include <a113/clkwrk/immersive.hpp>
@@ -21,6 +22,21 @@
 
 namespace mdn {
 
+class proxy_t {
+public:
+    friend class _bridge_t;
+
+protected:
+    std::string           _name   = {};
+    a113::text::Fastcli   _cli    = {};
+
+public:
+    a113::status_t pass( const std::string& text_, std::string* out_ ) {
+        return _cli.execute( text_, out_ );
+    }
+
+};
+
 #define MDN_DOCK_NAME_FNC \
     virtual std::string_view name( void )
 
@@ -28,13 +44,6 @@ namespace mdn {
     virtual a113::status_t guix_frame( \
         MDN_IN   const a113::clkwrk::Immersive::frame_cb_args_t&   args_ \
     )
-
-#define MDN_DOCK_FAST_AUTO_INSTALL( t, ... ) \
-    static struct _mdn_auto_install_t_ { \
-        _mdn_auto_install_t_( void ) { \
-            BridgE.install( a113::HVec< t >::make( __VA_ARGS__ ) ); \
-        } \
-    } _mdn_auto_install_; 
 
 class dock_t {
 public:
@@ -49,6 +58,13 @@ protected:
 
 };
 
+#define MDN_AUTO_INSTALL( t, ... ) \
+    static struct _mdn_installer_##t##_t_ { \
+        _mdn_installer_##t##_t_( void ) { \
+            BridgE.install( a113::HVec< t >::make( __VA_ARGS__ ) ); \
+        } \
+    } _mdn_installer_##t##_; 
+
 class _bridge_t : public a113::bridge_t {
 public:
     _bridge_t( void ) : bridge_t{ MDN_VERSION_STR } {
@@ -57,15 +73,18 @@ public:
 
 // ======================= Fields =======================
 public:
-    a113::clkwrk::Immersive                              imm          = {};
+    a113::clkwrk::Immersive                               imm           = {};
 
 protected:
-    std::atomic< a113::status_t >                        _status      = { A113_ERR_TERMINATED };
+    std::atomic< a113::status_t >                         _status       = { A113_ERR_TERMINATED };
 
-    std::map< std::string_view, a113::HVec< dock_t > >   _docks       = {};
-    std::shared_mutex                                    _docks_mtx   = {};
+    std::map< std::string_view, a113::HVec< proxy_t > >   _proxys       = {};
+    std::shared_mutex                                     _proxys_mtx   = {};
 
-    std::thread                                          _th_guix     = {};
+    std::map< std::string_view, a113::HVec< dock_t > >    _docks        = {};
+    std::shared_mutex                                     _docks_mtx    = {};
+
+    std::thread                                           _th_guix      = {};
 
 public:
     A113_inline auto status( void ) { return _status.load( std::memory_order_relaxed ); }
@@ -73,11 +92,47 @@ public:
     A113_inline void wait_stop( void ) { _status.wait( A113_OK, std::memory_order_seq_cst ); this->stop(); }
 
 public:
+    a113::status_t install(
+        MDN_IN   a113::HVec< proxy_t>   proxy_
+    ) {
+        MDN_ASSERT_OR( proxy_ ) {
+            logger->error( "bridge: install proxy: null proxy." );
+            return A113_ERR_BADARG;
+        }
+
+        std::string_view sv = proxy_->_name;
+        MDN_ASSERT_OR( not sv.empty() ) {
+            logger->error( "bridge: install proxy: empty name." ); 
+            return A113_ERR_FLOW;
+        }
+
+        std::unique_lock lck{ _proxys_mtx };
+        auto& proxy = _proxys[ sv ];
+        MDN_ASSERT_OR( not proxy ) {
+            lck.unlock();
+            logger->error( "bridge: register proxy: \"{}\" already exists.", sv );
+            return A113_ERR_WOULD_OVRWR;
+        }
+
+        proxy = std::move( proxy_ );
+        return A113_OK;
+    }
+
+    void uninstall_proxy(
+        MDN_IN   const std::string&   proxy_name_  
+    ) {
+        std::unique_lock lck{ _proxys_mtx };
+        _proxys.erase( proxy_name_ );
+        lck.unlock();
+
+        logger->info( "bridge: uninstalled proxy \"{}\".", proxy_name_ );
+    }
+
     a113::status_t install( 
         MDN_IN   a113::HVec< dock_t >    dock_ 
     ) {
         MDN_ASSERT_OR( dock_ ) {
-            logger->error( "bridge: install dock: null hvec." );
+            logger->error( "bridge: install dock: null dock." );
             return A113_ERR_BADARG;
         }
 
@@ -104,14 +159,14 @@ public:
         return A113_OK;
     }
 
-    void uninstall( 
-        MDN_IN   std::string_view   dock_id_
+    void uninstall_dock( 
+        MDN_IN   const std::string&   dock_id_
     ) {
         std::unique_lock lck{ _docks_mtx };
-        auto dock = _docks.extract( dock_id_ );
+        _docks.erase( dock_id_ );
         lck.unlock();
 
-        logger->info( "bridge: uninstalled dock \"{}\".", dock.mapped()->_id );
+        logger->info( "bridge: uninstalled dock \"{}\".", dock_id_ );
     }
 
 public:

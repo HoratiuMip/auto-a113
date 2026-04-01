@@ -108,6 +108,15 @@ endmacro( A113_Fnc_CloneRepo )
 
 
 include( CheckIPOSupported )
+check_ipo_supported( RESULT _a113_ipo_supported OUTPUT _ )
+if( _a113_ipo_supported )
+    set( CMAKE_INTERPROEDURAL_OPTIMIZATION ON )
+    message( STATUS "[A113] IPO enabled." )
+else()
+    message( STATUS "[A113] IPO not enabled." )
+endif()
+
+set( FETCHCONTENT_UPDATES_DISCONNECTED ON )
 
 
 message( STATUS "[A113] Adding the bedrock plate subdirectory." )
