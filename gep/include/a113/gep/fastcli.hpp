@@ -238,6 +238,16 @@ _A113_PROTECTED:
     cmd_map_t           _cmd_map       = {};
     std::shared_mutex   _cmd_map_mtx   = {};
 
+public:
+    status_t bind( const config_t& config_, const cmd_map_t& cmd_map_ ) {
+        _config  = config_;
+        
+        std::lock_guard lck{ _cmd_map_mtx };
+        _cmd_map = cmd_map_;
+
+        return A113_OK;
+    }
+
 _A113_PROTECTED:
     A113_inline bool _is_xtra_chr( const char c_ ) const {
         return _config.xtra_chrs.find( c_, 0x0 ) != std::string::npos;

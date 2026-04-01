@@ -3,9 +3,9 @@ using namespace mdn;
 using namespace a113;
 using namespace glm;
 
-struct _lab_opt_5_t : dock_t {
+struct Dock : dock_t {
 public:
-    _lab_opt_5_t( void ) {
+    Dock( void ) {
         f     = [] MDN_FNC_2D_L(double) {
             return 10.0*x1*x1 + 6.0*x2*x2 + 8.0*pow(x1,4)*pow(x2,4) + 24;
         };
@@ -75,7 +75,8 @@ public:
     MDN_DOCK_NAME_FNC override { return "lab-opt-5"; }
 
     MDN_DOCK_GUIX_FNC override {
-        if( ImGui::Begin( "Optimization Lab 5", nullptr, ImGuiWindowFlags_None ) ) {
+        bool open = true;
+        if( ImGui::Begin( "Optimization Lab 5", &open, ImGuiWindowFlags_None ) ) {
             ImGui::SeparatorText( "f(x1,x2)" );
             ImGui::TextUnformatted( "10x1^2 + 6x2^2 + 8x1^4x2^4 + 24" );
             ImGui::Separator();
@@ -89,7 +90,7 @@ public:
 
                 ImPlot::PlotHeatmap(
                     "##htm-f", grid.raw(), grid.n_of(1), grid.n_of(0),
-                    0, 0, nullptr, {-1,-1}, {1,1},
+                    grid.min(), grid.max(), nullptr, {-1,-1}, {1,1},
                     ImPlotHeatmapFlags_None
                 );
 
@@ -120,9 +121,9 @@ public:
                 dvec2 xk = x0;
                 for( int n = 1; n <= step_count[ Method_Steepest ]; ++n ) {
                     compute_gradient( xk );
-                    dvec2 dk = -dvec2{ grad[0], grad[1] }; dk /= dk.length();
-
-                    auto [ s, _ ] = mdn_0::search_mf1_elimgr< double >( 0.0, 5.0, 0.0000001, nullptr, [ & ] ( double s_ ) -> double {
+                    dvec2 dk = -dvec2{ grad[0], grad[1] }; dk /= length( dk );
+                    
+                    auto [ s, _ ] = mdn_0::search_mf1_elimgr< double >( 0.0, 1.0, 0.00001, nullptr, [ & ] ( double s_ ) -> double {
                         auto dxk = xk + dk*s_; return f( dxk.x, dxk.y );
                     } );
 
@@ -149,7 +150,7 @@ public:
                     
                     dk = -gk + dk*bk;
 
-                    auto [ s, _ ] = mdn_0::search_mf1_elimgr< double >( 0.0, 5.0, 0.001, nullptr, [ & ] ( double s_ ) -> double {
+                    auto [ s, _ ] = mdn_0::search_mf1_elimgr< double >( 0.0, 1.0, 0.00001, nullptr, [ & ] ( double s_ ) -> double {
                         auto dxk = xk + dk*s_; return f( dxk.x, dxk.y );
                     } );
 
@@ -165,7 +166,7 @@ public:
                     compute_gradient( xk1 );
                     dvec2 gk1 = dvec2{ grad[0], grad[1] };
                     
-                    bk = pow(gk1.length(),2) / pow(gk.length(),2);
+                    bk = pow(length(gk1),2) / pow(length(gk),2);
 
                     xk = xk1;
                 }
@@ -187,9 +188,25 @@ public:
             ImGui::Separator();
         } 
         ImGui::End();
-        return A113_OK; 
+        return open ? A113_OK : A113_ERR_TERMINATED; 
     }
 };
 
-MDN_AUTO_INSTALL( _lab_opt_5_t );
+struct Proxy : proxy_t {
+public:
+    Proxy( void )
+    : proxy_t{
+        "lab-opt-5",
+        {},
+        { 
+        {   .text = "install",
+            .fnc = [ this ] ( auto& stencil_ ) -> status_t {
+                BridgE.install( a113::HVec< Dock >::make() );
+                return A113_OK;
+            }
+        }
+        }
+    } {}
+};
 
+MDN_AUTO_INSTALL( Proxy );

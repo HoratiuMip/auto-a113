@@ -26,6 +26,13 @@ class proxy_t {
 public:
     friend class _bridge_t;
 
+public:
+    proxy_t( 
+        MDN_IN   const std::string&                      name_, 
+        MDN_IN   const a113::text::Fastcli::config_t&    cli_config_, 
+        MDN_IN   const a113::text::Fastcli::cmd_map_t&   cli_cmd_map_
+    ) : _name{ name_ }, _cli{ cli_config_, cli_cmd_map_ } {}
+
 protected:
     std::string           _name   = {};
     a113::text::Fastcli   _cli    = {};
@@ -79,10 +86,10 @@ protected:
     std::atomic< a113::status_t >                         _status       = { A113_ERR_TERMINATED };
 
     std::map< std::string_view, a113::HVec< proxy_t > >   _proxys       = {};
-    std::shared_mutex                                     _proxys_mtx   = {};
+    std::recursive_mutex                                  _proxys_mtx   = {};
 
     std::map< std::string_view, a113::HVec< dock_t > >    _docks        = {};
-    std::shared_mutex                                     _docks_mtx    = {};
+    std::recursive_mutex                                  _docks_mtx    = {};
 
     std::thread                                           _th_guix      = {};
 
@@ -115,6 +122,9 @@ public:
         }
 
         proxy = std::move( proxy_ );
+        lck.unlock();
+
+        logger->info( "bridge: installed proxy \"{}\".", sv );
         return A113_OK;
     }
 
@@ -216,13 +226,33 @@ public:
     }
 
 public:
+    a113::status_t proxy_pass( 
+        MDN_IN    std::string_view     proxy_name_, 
+        MDN_IN    const std::string&   command_, 
+        MDN_OUT   std::string*         out_
+    ) {
+        std::unique_lock lck{ _proxys_mtx };
+        auto itr = _proxys.find( proxy_name_ );
+
+        MDN_ASSERT_OR( itr != _proxys.end() ) {
+            lck.unlock();
+            *out_ += std::format( "No such proxy: \"{}\".", proxy_name_ );
+            return A113_ERR_BADARG;
+        }
+
+        auto proxy = itr->second; lck.unlock();
+
+        return proxy->pass( command_, out_ );
+    }
+
+public:
     MDN_DOCK_GUIX_FNC {
         imm.assets_idle_splash_render( args_ );
 
-        std::shared_lock lck{ _docks_mtx };
-        for( auto& [ id, dock ] : _docks ) {
-            dock->guix_frame( args_ );
-        }
+        std::unique_lock lck{ _docks_mtx };
+        std::erase_if( _docks, [ &args_ ] ( auto& itr_ ) -> bool {
+            return A113_OK != itr_.second->guix_frame( args_ );
+        } );
 
         return A113_OK;
     }

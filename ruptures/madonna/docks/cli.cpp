@@ -33,6 +33,32 @@ public:
                 return A113_OK;
             }
         }, {
+            .text = "proxy-pass",
+            .opts = {
+                { .sh0rt = 't', .l0ng = "target", .arg = Fastcli::Arg_text, .fast_id = 0x0 },
+                { .sh0rt = 'c', .l0ng = "command", .arg = Fastcli::Arg_text, .fast_id = 0x1 }
+            },
+            .fnc = [] ( auto& stencil_ ) -> status_t {
+                std::string target;
+                std::string command;
+
+                char opt;  while( opt = stencil_.next() ) {
+                    switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                        case 't': {
+                            target = std::move( stencil_.arg_text() );
+                        break; }
+                        case 'c': {
+                            command = std::move( stencil_.arg_text() );
+                        break; }
+                    }
+                }
+                
+                std::string out;
+                BridgE.proxy_pass( target, command, &out );
+
+                return A113_OK;
+            }
+        }, {
             .text = "roots",
             .opts = {
                 { .sh0rt = 'c', .l0ng = "coeffs", .arg = Fastcli::Arg_f64, .fast_id = 0x0, .argc = Fastcli::Argc_multi_compact }
