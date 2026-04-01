@@ -48,6 +48,8 @@ template< typename _FTYPE_v_ > struct vec2_t {
 };
 
 template< typename _FTYPE_v_ > using fnc_1d_t = std::function< _FTYPE_v_( _FTYPE_v_ ) >;
+template< typename _FTYPE_v_ > using fnc_2d_t = std::function< _FTYPE_v_( _FTYPE_v_, _FTYPE_v_ ) >;
+#define MDN_FNC_2D_L( _FTYPE_v_ ) ( _FTYPE_v_ x1, _FTYPE_v_ x2 ) -> _FTYPE_v_
 
 template< typename _FTYPE_v_ > struct tfc_t {
     int        n     = 0;
@@ -95,6 +97,35 @@ status_t roots( const _FTYPE_v_* co_, int n_, _FTYPE_v_* rr_, _FTYPE_v_* ri_ ) {
 
 
 template< typename _FTYPE_v_ >
+status_t invm( _FTYPE_v_* m_, int n_ ) {
+    int info = 0x0;
+    int ipiv[ n_ ];
+
+    if constexpr( std::is_same_v< float, _FTYPE_v_ > ) {
+        info = LAPACKE_sgetrf( LAPACK_ROW_MAJOR, n_, n_, m_, n_, ipiv );
+    } else if constexpr( std::is_same_v< double, _FTYPE_v_ > ) {
+        info = LAPACKE_dgetrf( LAPACK_ROW_MAJOR, n_, n_, m_, n_, ipiv );
+    }
+    A113_ASSERT_OR( info == 0x0 ) {
+        BridgE->error( "invm: could not split matrix." );
+        return A113_ERR_FLOW;
+    }
+
+    if constexpr( std::is_same_v< float, _FTYPE_v_ > ) {
+        info = LAPACKE_sgetri( LAPACK_ROW_MAJOR, n_, m_, n_, ipiv );
+    } else if constexpr( std::is_same_v< double, _FTYPE_v_ > ) {
+        info = LAPACKE_dgetri( LAPACK_ROW_MAJOR, n_, m_, n_, ipiv );
+    }
+    A113_ASSERT_OR( info == 0x0 ) {
+        BridgE->error( "invm: could not invert matrix." );
+        return A113_ERR_FLOW;
+    }
+
+    return A113_OK;
+}
+
+
+template< typename _FTYPE_v_ >
 _FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FTYPE_v_* dy_h_, _FTYPE_v_* du_h_, _FTYPE_v_ u_, _FTYPE_v_ t_ ) {
     _FTYPE_v_ dny = num_[ m_-1 ] * u_;
 
@@ -136,6 +167,27 @@ _FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FT
     }
 
     return dy_h_[ 0x0 ];
+}
+
+template< typename _FTYPE_v_ >
+_FTYPE_v_ d1_f1( _FTYPE_v_ x_, _FTYPE_v_ r_, fnc_1d_t< _FTYPE_v_ > fnc_ ) {
+    const _FTYPE_v_ lb = fnc_( x_ - r_ );
+    const _FTYPE_v_ rb = fnc_( x_ + r_ );
+    return ( rb-lb ) / ( r_*2 ); 
+} 
+
+template< typename _FTYPE_v_ >
+_FTYPE_v_ d2_f1( _FTYPE_v_ x_, _FTYPE_v_ r_, fnc_1d_t< _FTYPE_v_ > fnc_ ) {
+    const _FTYPE_v_ lb = d1_f1( x_ - r_, r_, fnc_ );
+    const _FTYPE_v_ rb = d1_f1( x_ + r_, r_, fnc_ );
+    return ( rb-lb ) / ( r_*2 ); 
+}
+
+template< typename _FTYPE_v_ >
+status_t d1_f2( _FTYPE_v_ x_, _FTYPE_v_ y_, _FTYPE_v_ r_, _FTYPE_v_* d_, fnc_2d_t< _FTYPE_v_ > fnc_ ) {
+    d_[ 0x0 ] = d1_f1< _FTYPE_v_ >( x_, r_, [ &fnc_, &y_ ] ( _FTYPE_v_ x_ ) -> _FTYPE_v_ { return fnc_( x_, y_ ); } );
+    d_[ 0x1 ] = d1_f1< _FTYPE_v_ >( y_, r_, [ &fnc_, &x_ ] ( _FTYPE_v_ y_ ) -> _FTYPE_v_ { return fnc_( x_, y_ ); } );
+    return A113_OK;
 }
 
 
