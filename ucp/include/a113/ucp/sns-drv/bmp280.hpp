@@ -1,14 +1,14 @@
 #pragma once
 /**
- * @file: ucp/sensor_drivers/bmp280.hpp
+ * @file: ucp/sns-drv/bmp280.hpp
  * @brief: 
  * @details:
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <a113/ucp/IO_i2c_ints.hpp>
+#include <a113/ucp/IO_i2c_ifs.hpp>
 
-namespace a113::sdrv { using namespace a113::io;
+namespace a113::snsd { using namespace a113::io;
 
 class BMP280 {
 public:
@@ -60,7 +60,7 @@ public:
     BMP280( void ) = default;
 
 _A113_PROTECTED:
-    io::I2C_m2s_Int*   _i2c         = nullptr;
+    io::I2C_m2s_If*   _i2c         = nullptr;
 
     struct _calibs_t {
         uint16_t   dig_T1   = 0x0;
@@ -109,14 +109,14 @@ _A113_PROTECTED:
     }
 
 public:
-    status_t bind_i2c( I2C_m2s_Int* i2c_ ) { _i2c = i2c_; return A113_OK; }
+    status_t bind_i2c( I2C_m2s_If* i2c_ ) { _i2c = i2c_; return A113_OK; }
 
 public:
     status_t load_calibs( void ) {
         uint8_t buffer[ 24 ];
 
         A113_ASSERT_STATUS_OR_RET( _i2c->write_read( 
-            { .src_ptr = (char[]){ 0x88 }, .src_n = 1 }, 
+            { .src_ptr = (char*)(char[]){ 0x88 }, .src_n = 1 }, 
             { .dst_ptr = (char*)buffer, .dst_n = sizeof( buffer ) } 
         ) );
     #define _MAKE_WORD( offset ) ( ( buffer[ offset+1 ] << 8 ) | buffer[ offset ] )
@@ -147,8 +147,7 @@ public:
         int32_t raw_temp  = ( int32_t )( ( buffer[ 3 ] << 12 ) | ( buffer[ 4 ] << 4 ) | ( buffer[ 5 ] >> 4 ) );
         int64_t raw_press = ( int32_t )( ( buffer[ 0 ] << 12 ) | ( buffer[ 1 ] << 4 ) | ( buffer[ 2 ] >> 4 ) );
 
-        auto temp = this->_calib_raw_temperature( raw_temp );
-        if( temp_out_ )  *temp_out_  = temp;
+        if( temp_out_ )  *temp_out_  = this->_calib_raw_temperature( raw_temp );
         if( press_out_ ) *press_out_ = this->_calib_raw_pressure( raw_press );
 
         return A113_OK;
@@ -169,6 +168,7 @@ public:
 public:
     A113_inline status_t store_ctrl_meas( uint8_t val_ ) { return _i2c->write_reg( 0xF4, val_ ); }
     A113_inline status_t store_config( uint8_t val_ ) { return _i2c->write_reg( 0xF5, val_ ); }
+
 };
 
 };

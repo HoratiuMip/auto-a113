@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.28.0 )
+cmake_minimum_required( VERSION 3.20.0 )
 
 set( _excom_dir "${CMAKE_CURRENT_LIST_DIR}/excom" )
 

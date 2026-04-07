@@ -1,15 +1,15 @@
 #pragma once
 /**
- * @file: ucp/sensor_drivers/bme280.hpp
+ * @file: ucp/sns-drv/bme280.hpp
  * @brief: 
  * @details:
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <a113/ucp/IO_i2c_ints.hpp>
+#include <a113/ucp/IO_i2c_ifs.hpp>
 #include <a113/ucp/sensor_drivers/bmp280.hpp>
 
-namespace a113::sdrv { using namespace a113::io;
+namespace a113::snsd { using namespace a113::io;
 
 class BME280 : public BMP280 {
 public:

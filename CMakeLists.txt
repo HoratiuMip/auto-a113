@@ -3,7 +3,7 @@ cmake_minimum_required( VERSION 3.28.0 )
 project(
     A113
     VERSION 1.0.0
-    LANGUAGES C CXX Fortran
+    LANGUAGES C CXX
 )
 set( A113_VERSION_MAJOR 1 )
 set( A113_VERSION_MINOR 0 )
@@ -12,15 +12,15 @@ set( A113_VERSION_STRING "a113v1.0.3" )
 
 set( CMAKE_CXX_STANDARD 23 )
 set( CMAKE_CXX_EXTENSIONS ON )
-set( CMAKE_CXX_STANDARD_REQUIRED ON )
 
 set( A113_GENERATED_FILE_CAUTION_MSG "/*\n[A113] CAUTION!\nTHIS FILE WAS GENERATED DURING BUILD AND IT WILL BE OVERRIDEN IN THE NEXT ONE.\nDO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.\n*/")
 
 option( A113_Opt_TargetPlate_OS OFF )
+option( A113_Opt_TargetPlate_uC OFF )
+
 option( A113_Opt_TargetOS_Windows OFF )
 option( A113_Opt_TargetOS_Linux OFF )
-
-option( A113_Opt_TargetPlate_uC OFF )
+option( A113_Opt_TargetOS_FreeRTOS OFF )
 
 option( A113_Opt_ OFF )
 
@@ -38,20 +38,21 @@ if( A113_TARGET_PLATE STREQUAL "OS" )
         message( ERROR "[A113] Target operating system not specified. Aborted." )
         return()
     endif()
-
-    if( A113_TARGET_OS STREQUAL "Windows" )
-        set( A113_Opt_TargetOS_Windows ON )
-    elseif( A113_TARGET_OS STREQUAL "Linux" )
-        set( A113_Opt_TargetOS_Linux ON )
-    else()
-        message( ERROR "[A113] Target operating system \"${A113_TARGET_OS}\" is not valid." )
-        return()
-    endif()
-
 elseif( A113_TARGET_PLATE STREQUAL "uC" )
     set( A113_Opt_TargetPlate_uC ON )
 else()
     message( ERROR "[A113] Target plate \"${A113_TARGET_PLATE}\" is not valid." )
+    return()
+endif()
+
+if( A113_TARGET_OS STREQUAL "Windows" )
+    set( A113_Opt_TargetOS_Windows ON )
+elseif( A113_TARGET_OS STREQUAL "Linux" )
+    set( A113_Opt_TargetOS_Linux ON )
+elseif( A113_TARGET_OS STREQUAL "FreeRTOS" )
+    set( A113_Opt_TargetOS_FreeRTOS ON )
+else()
+    message( ERROR "[A113] Target operating system \"${A113_TARGET_OS}\" is not valid." )
     return()
 endif()
 

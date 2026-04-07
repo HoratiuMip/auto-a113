@@ -1,14 +1,14 @@
 #pragma once
 /**
- * @file: ucp/sensor_drivers/aht21.hpp
+ * @file: ucp/sns-drv/aht21.hpp
  * @brief: 
  * @details:
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <a113/ucp/IO_i2c_ints.hpp>
+#include <a113/ucp/IO_i2c_ifs.hpp>
 
-namespace a113::sdrv { using namespace a113::io;
+namespace a113::snsd { using namespace a113::io;
 
 class AHT21 {
 public:
@@ -25,10 +25,10 @@ public:
     AHT21( void ) = default;
 
 _A113_PROTECTED:
-    io::I2C_m2s_Int*   _i2c   = nullptr;
+    io::I2C_m2s_If*   _i2c   = nullptr;
 
 public:
-    status_t bind_i2c( I2C_m2s_Int* i2c_ ) { _i2c = i2c_; return A113_OK; }
+    status_t bind_i2c( I2C_m2s_If* i2c_ ) { _i2c = i2c_; return A113_OK; }
 
 public:
     A113_inline status_t calib( void ) {

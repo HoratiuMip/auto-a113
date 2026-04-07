@@ -1,18 +1,17 @@
 #pragma once
 /**
- * @file: ucp/espressif32/IO_i2c.hpp
+ * @file: ucp/esp32-5x/IO_i2c.hpp
  * @brief: 
  * @details:
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <a113/ucp/IO_i2c_ints.hpp>
-
+#include <a113/ucp/IO_i2c_ifs.hpp>
 #include <driver/i2c_master.h>
 
 namespace a113::esp32::io { using namespace a113::io;
 
-class I2C_m2s : public I2C_m2s_Int {
+class I2C_m2s : public I2C_m2s_If {
 public:
     inline static constexpr int   DEFAULT_TIMEOUT   = 1000;
 
