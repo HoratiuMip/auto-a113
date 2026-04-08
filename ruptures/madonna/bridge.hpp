@@ -216,7 +216,7 @@ public:
     void signal_stop( void ) {
         _status.store( A113_ERR_TERMINATED, std::memory_order_release );
         _status.notify_all();
-        logger->info( "bridge: stopping..." );
+        logger->info( "bridge: signaling stop..." );
     }
 
     void stop( void ) {
@@ -247,6 +247,8 @@ public:
 
 public:
     MDN_DOCK_GUIX_FNC {
+        A113_ASSERT_OR( _status.load( std::memory_order_relaxed ) == A113_OK ) return A113_ERR_TERMINATED;
+
         imm.assets_idle_splash_render( args_ );
 
         std::unique_lock lck{ _docks_mtx };

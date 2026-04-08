@@ -3,7 +3,7 @@ cmake_minimum_required( VERSION 3.28.0 )
 project(
     A113
     VERSION 1.0.0
-    LANGUAGES C CXX
+    LANGUAGES C CXX Fortran
 )
 set( A113_VERSION_MAJOR 1 )
 set( A113_VERSION_MINOR 0 )

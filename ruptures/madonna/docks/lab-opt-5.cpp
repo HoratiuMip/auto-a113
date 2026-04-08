@@ -28,22 +28,26 @@ public:
             return 12.0 + 96.0*pow(x1,4)*x2*x2;
         };
 
-        constexpr double step = 0.01;
-        grid.span_s( { { step, -1, 1 }, { step, -1, 1 } } );
+        constexpr double step = 0.1;
+        grid.span_s( { { step, -8, 8 }, { step, -8, 8 } } );
         grid.apply( [ this ] ( double* x ) -> double { return f( x[0], x[1] ); } );
     }
 
 public:
-    inline static constexpr int METHOD_COUNT = 3;
+    inline static constexpr int METHOD_COUNT = 5;
     inline static const char* const METHODS[ METHOD_COUNT ] = {
         "Newton",
         "Steepest",
-        "Conjugate"
+        "Conjugate-fr",
+        "Conjugate-pr",
+        "Conjugate-hs"
     };
     enum Method_ {
         Method_Newton,
         Method_Steepest,
-        Method_Conjugate
+        Method_ConjugateFr,
+        Method_ConjugatePr,
+        Method_ConjugateHs
     };
 
 public:
@@ -53,15 +57,15 @@ public:
     mdn_2::srf_grid_t< double >   grid;
 
     int                           step_count[ METHOD_COUNT ] = { 0 };
-    double                        grad[ 2 ];
+    dvec2                         grad;
     double                        hess[ 4 ];
     dvec2                         x0{ 0.5, 0.5 };
     double                        s{ 1.0 };
 
 public:
     void compute_gradient( dvec2 X ) {
-        grad[0] = fd[0]( X.x, X.y );
-        grad[1] = fd[1]( X.x, X.y );
+        grad.x = fd[0]( X.x, X.y );
+        grad.y = fd[1]( X.x, X.y );
     }
 
     void compute_hessian( dvec2 X ) {
@@ -83,14 +87,14 @@ public:
 
             ImPlot::PushColormap( ImPlotColormap_Viridis );
             if( ImPlot::BeginPlot( "##plt-f", {680, 680} ) ) {
-                if( ImPlot::IsPlotHovered() && ImGui::IsMouseClicked( ImGuiMouseButton_Left ) ) {
+                if( ImPlot::IsPlotHovered() && ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsKeyDown( ImGuiKey_LeftCtrl ) ) {
                     auto p = ImPlot::GetPlotMousePos();
                     x0.x = p.x; x0.y = p.y;
                 }
 
                 ImPlot::PlotHeatmap(
                     "##htm-f", grid.raw(), grid.n_of(1), grid.n_of(0),
-                    grid.min(), grid.max(), nullptr, {-1,-1}, {1,1},
+                    grid.min(), grid.max(), nullptr, {-8,-8}, {8,8},
                     ImPlotHeatmapFlags_None
                 );
 
@@ -102,8 +106,8 @@ public:
                     MDN_ASSERT_OR( A113_OK == mdn_0::invm( hess, 2 ) ) break;
 
                     dvec2 xk1 = {
-                        xk.x - hess[0]*grad[0] - hess[1]*grad[1],
-                        xk.y - hess[2]*grad[0] - hess[3]*grad[1]
+                        xk.x - hess[0]*grad.x - hess[1]*grad.y,
+                        xk.y - hess[2]*grad.x - hess[3]*grad.y
                     };
 
                     ImPlot::SetNextLineStyle( { 1,.36,0,1 }, 2 );
@@ -121,7 +125,7 @@ public:
                 dvec2 xk = x0;
                 for( int n = 1; n <= step_count[ Method_Steepest ]; ++n ) {
                     compute_gradient( xk );
-                    dvec2 dk = -dvec2{ grad[0], grad[1] }; dk /= length( dk );
+                    dvec2 dk = -grad; dk /= length( dk );
                     
                     auto [ s, _ ] = mdn_0::search_mf1_elimgr< double >( 0.0, 1.0, 0.00001, nullptr, [ & ] ( double s_ ) -> double {
                         auto dxk = xk + dk*s_; return f( dxk.x, dxk.y );
@@ -140,13 +144,13 @@ public:
                 }
                 }
 
-                /* === Conjugate === */ {
+                /* === Conjugate FR === */ {
                 dvec2  xk = x0;
                 dvec2  dk = { 0, 0 };
                 double bk = 0;
                 compute_gradient( xk );
-                for( int n = 1; n <= step_count[ Method_Conjugate ]; ++n ) {
-                    dvec2 gk = dvec2{ grad[0], grad[1] };
+                for( int n = 1; n <= step_count[ Method_ConjugateFr ]; ++n ) {
+                    dvec2 gk = grad;
                     
                     dk = -gk + dk*bk;
 
@@ -157,14 +161,14 @@ public:
                     dvec2 xk1 = xk + dk*s;
 
                     ImPlot::SetNextLineStyle( { 1,.72,0,1 }, 2 );
-                    ImPlot::PlotLine( METHODS[ Method_Conjugate ], (double[2]){ xk.x, xk1.x }, (double[2]){ xk.y, xk1.y }, 2 );
-                    if( ImPlot::IsLegendEntryHovered( METHODS[ Method_Conjugate ] ) ) {
+                    ImPlot::PlotLine( METHODS[ Method_ConjugateFr ], (double[2]){ xk.x, xk1.x }, (double[2]){ xk.y, xk1.y }, 2 );
+                    if( ImPlot::IsLegendEntryHovered( METHODS[ Method_ConjugateFr ] ) ) {
                         ImPlot::SetNextLineStyle( { 1,1,1,1 }, 2 );
                         ImPlot::PlotScatter( "", (double[2]){ xk.x, xk1.x }, (double[2]){ xk.y, xk1.y }, 2 );
                     }
 
                     compute_gradient( xk1 );
-                    dvec2 gk1 = dvec2{ grad[0], grad[1] };
+                    dvec2 gk1 = grad;
                     
                     bk = pow(length(gk1),2) / pow(length(gk),2);
 
@@ -172,20 +176,93 @@ public:
                 }
                 }
 
+                /* === Conjugate PR === */ {
+                dvec2  xk = x0;
+                dvec2  dk = { 0, 0 };
+                double bk = 0;
+                compute_gradient( xk );
+                for( int n = 1; n <= step_count[ Method_ConjugatePr ]; ++n ) {
+                    dvec2 gk = grad;
+                    
+                    dk = -gk + dk*bk;
+
+                    auto [ s, _ ] = mdn_0::search_mf1_elimgr< double >( 0.0, 1.0, 0.00001, nullptr, [ & ] ( double s_ ) -> double {
+                        auto dxk = xk + dk*s_; return f( dxk.x, dxk.y );
+                    } );
+
+                    dvec2 xk1 = xk + dk*s;
+
+                    ImPlot::SetNextLineStyle( { 1,0,.72,1 }, 2 );
+                    ImPlot::PlotLine( METHODS[ Method_ConjugatePr ], (double[2]){ xk.x, xk1.x }, (double[2]){ xk.y, xk1.y }, 2 );
+                    if( ImPlot::IsLegendEntryHovered( METHODS[ Method_ConjugatePr ] ) ) {
+                        ImPlot::SetNextLineStyle( { 1,1,1,1 }, 2 );
+                        ImPlot::PlotScatter( "", (double[2]){ xk.x, xk1.x }, (double[2]){ xk.y, xk1.y }, 2 );
+                    }
+
+                    compute_gradient( xk1 );
+                    dvec2 gk1 = grad;
+
+                    bk = dot( gk1, gk1-gk ) / dot( gk, gk );
+
+                    xk = xk1;
+                }
+                }
+
+                /* === Conjugate HS === */ {
+                dvec2  xk = x0;
+                dvec2  dk = { 0, 0 };
+                double bk = 0;
+                compute_gradient( xk );
+                for( int n = 1; n <= step_count[ Method_ConjugateHs ]; ++n ) {
+                    dvec2 gk = grad;
+                    
+                    dk = -gk + dk*bk;
+
+                    auto [ s, _ ] = mdn_0::search_mf1_elimgr< double >( 0.0, 1.0, 0.00001, nullptr, [ & ] ( double s_ ) -> double {
+                        auto dxk = xk + dk*s_; return f( dxk.x, dxk.y );
+                    } );
+
+                    dvec2 xk1 = xk + dk*s;
+
+                    ImPlot::SetNextLineStyle( { 1,.36,.36,1 }, 2 );
+                    ImPlot::PlotLine( METHODS[ Method_ConjugateHs ], (double[2]){ xk.x, xk1.x }, (double[2]){ xk.y, xk1.y }, 2 );
+                    if( ImPlot::IsLegendEntryHovered( METHODS[ Method_ConjugateHs ] ) ) {
+                        ImPlot::SetNextLineStyle( { 1,1,1,1 }, 2 );
+                        ImPlot::PlotScatter( "", (double[2]){ xk.x, xk1.x }, (double[2]){ xk.y, xk1.y }, 2 );
+                    }
+
+                    compute_gradient( xk1 );
+                    dvec2 gk1 = grad;
+
+                    bk = dot( gk1, gk1-gk ) / dot( dk, gk1-gk );
+
+                    xk = xk1;
+                }
+                }
+
                 ImPlot::EndPlot();
             }
-        
+    
             ImGui::SameLine();
-            ImPlot::ColormapScale( "z", grid.min(), grid.max() );
+            ImPlot::ColormapScale( "z", grid.min(), grid.max(), {100,680} );
             ImPlot::PopColormap();
             
-            ImGui::SeparatorText( "Step count" );
+            ImGui::SameLine();
+            ImGui::BeginTable( "Steps", METHOD_COUNT, ImGuiTableFlags_BordersOuter | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_HighlightHoveredColumn );
             for( int i = 0x0; i < METHOD_COUNT; ++i ) {
-                ImGui::PushID( i );
-                ImGui::SliderInt( METHODS[ i ], step_count + i, 1, 100 );
-                ImGui::PopID();
+                ImGui::TableSetupColumn( METHODS[i], ImGuiTableColumnFlags_AngledHeader );
             }
-            ImGui::Separator();
+            ImGui::TableAngledHeadersRow();
+            ImGui::TableNextRow();
+            
+            for( int i = 0x0; i < METHOD_COUNT; ++i ) {
+                ImGui::TableNextColumn();
+                ImGui::VSliderInt( std::format( "##step-count-{}", METHODS[i] ).c_str(), {50, 500}, step_count + i, 0, 100 );
+            }
+            ImGui::EndTable();
+
+            ImGui::SeparatorText( "Initial guess");
+            ImGui::InputScalarN( "##input-ig", ImGuiDataType_Double, &x0, 2 );
         } 
         ImGui::End();
         return open ? A113_OK : A113_ERR_TERMINATED; 

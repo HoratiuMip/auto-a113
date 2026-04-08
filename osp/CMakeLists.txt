@@ -124,6 +124,8 @@ if( A113_Flag_ExcomActive )
     set( LAPACKE ON )
     A113_Fnc_CloneRepo( "https://github.com/Reference-LAPACK/lapack.git" "v3.12.0" lapack "${_excom_dir}" )
 
+    enable_language( Fortran )
+
     target_link_libraries( A113_OSp
         PUBLIC lapack
         PUBLIC blas

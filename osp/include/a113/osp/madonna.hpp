@@ -470,7 +470,8 @@ public:
         _FTYPE_v_   x[ dims ]   = { _FTYPE_v_{0} };
         int       ds[ count ] = { 0x0 };
         
-        _min = _max = _field[0x0];
+        _min = std::numeric_limits< _FTYPE_v_ >::max();
+        _max = std::numeric_limits< _FTYPE_v_ >::min();
 
         for( int i = 0x0; i < count; ++i ) {
             for( int d = 0x0; d < dims; ++d ) x[d] = _spans[d][ds[d]];
