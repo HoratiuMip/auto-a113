@@ -34,8 +34,14 @@ public:
 
 };
 
-/* === no memory structures  === */
+/* === working structures  === */
 namespace a113::mdn_0 { using namespace _mdn;
+
+#ifdef A113_MDN_REAL_T
+    typedef   A113_MDN_REAL_T   real_t;
+#else
+    typedef   float             real_t;
+#endif
 
 enum DiscDiffMth_ {
     DiscDiffMth_FwdEuler,
@@ -248,6 +254,30 @@ vec2_t< _FTYPE_v_ > search_mf1_elimfib( _FTYPE_v_ a_, _FTYPE_v_ b_, _FTYPE_v_ ep
 namespace a113::mdn_1 { using namespace _mdn;
 
 template< typename _FTYPE_v_ > using vec = std::vector< _FTYPE_v_ >;
+
+template< typename _FTYPE_v_ > struct vec_t {
+_A113_PROTECTED:
+    _FTYPE_v_*   _cmps   = nullptr;
+
+public:
+    union {
+        struct {
+            _FTYPE_v_   x;
+            _FTYPE_v_   y;
+            _FTYPE_v_   z;
+        };
+        struct {
+            int   _sz;
+        };
+    };
+
+public:
+    A113_inline _FTYPE_v_* cmps( void ) {
+        return _cmps ? _cmps : &x;
+    }
+
+};
+
 
 template< typename _FTYPE_v_ > struct rvec {
 public: 

@@ -84,6 +84,7 @@ typedef   int   status_t;
 #define A113_ERR_ENGINECALL   -0xE
 #define A113_ERR_TIMEOUT      -0xF
 #define A113_ERR_TERMINATED   -0x10
+#define A113_ERR_INTERRUPTED  -0x11
 
 inline static const char* const status_msgs[] = {
     "OK", "GENERAL", "SYSCALL", "WOULD_OVRWR", "OPEN",

@@ -37,7 +37,7 @@ struct HVec : public std::shared_ptr< _T_ > {
     HVec( const std::shared_ptr< _T_ >&  ptr_ ) : std::shared_ptr< _T_ >{ ptr_ } {}
     HVec( std::shared_ptr< _T_ >&& ptr_ ) : std::shared_ptr< _T_ >{ std::move( ptr_ ) } {}
     HVec( _T_* ptr_ ) { this->reset( ptr_ ); }
-    HVec( _T_& ref_ ) : std::shared_ptr< _T_ >{ &ref_, [] ( _T_* ) static -> void {} } {}
+    HVec( _T_& ref_ ) : std::shared_ptr< _T_ >{ &ref_, [] ( [[maybe_unused]]_T_* ) static -> void {} } {}
 
     template< typename ...Args_ >
     A113_inline static HVec< _T_ > make( Args_&&... args_ ) { return std::make_shared< _T_ >( std::forward< Args_ >( args_ )... ); }
