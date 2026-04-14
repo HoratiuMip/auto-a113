@@ -12,7 +12,7 @@ namespace a113 {
 class Compound {
 public:
     enum State_ {
-        State_STOPPED, State_STARTED, State_STOPPING, State_STARTING, State_FAULT
+        State_STOPPED, State_STARTED, State_STOPPING, State_STARTING
     };
 
 _A113_PROTECTED:
@@ -36,7 +36,7 @@ public:
         status_t status = this->_compound_start( ctxu_ );
         A113_ASSERT_OR( A113_OK == status ) {
             this->_compound_stop( ctxud_ );
-            _compound_state.store( State_FAULT, std::memory_order_release );
+            _compound_state.store( State_STOPPED, std::memory_order_release );
             return status;
         }
         _compound_state.store( State_STARTED, std::memory_order_release );
@@ -51,7 +51,7 @@ public:
 
         status_t status = this->_compound_stop( ctxd_ );
         A113_ASSERT_OR( A113_OK == status ) {
-            _compound_state.store( State_FAULT, std::memory_order_release );
+            _compound_state.store( State_STOPPED, std::memory_order_release );
             return status;
         }
         _compound_state.store( State_STOPPED, std::memory_order_release );
@@ -59,7 +59,7 @@ public:
     }
 
     virtual status_t compound_restart( void* ctxd_ = nullptr, void* ctxu_ = nullptr, void* ctxud_ = nullptr ) {
-        A113_ASSERT_STATUS_OR_RET( this->compound_stop( ctxd_ ) );
+        this->compound_stop( ctxd_ );
         return this->compound_start( ctxu_, ctxud_ );
     }
 
@@ -76,12 +76,20 @@ public:
 
 class CompoundCluster {
 public:
+    struct restart_if_args_t {
+        int   attempt   = 0;
+    };
+
     struct entry_t {
-        HVec< Compound >                         ref          = nullptr;
-        std::function< status_t( Compound& ) >   restart_if   = nullptr;
-        void*                                    ctxu         = nullptr;
-        void*                                    ctxd         = nullptr;
-        void*                                    ctxud        = nullptr;
+        typedef   std::function< status_t( Compound&, const restart_if_args_t& ) >   restart_if_fnc_t;
+
+        HVec< Compound >   ref                   = nullptr;
+        restart_if_fnc_t   restart_if            = nullptr;
+        void*              ctxu                  = nullptr;
+        void*              ctxd                  = nullptr;
+        void*              ctxud                 = nullptr;
+
+        mutable int        _failed_restart_cnt   = 0;
     };
 
 _A113_PROTECTED:
@@ -113,8 +121,15 @@ public:
     void iterate_register( void ) {
         std::shared_lock lck( _reg_mtx );
         for( auto& entry : _register ) {
-            if( entry.ref->compound_is_stable() and A113_OK != entry.restart_if( *entry.ref ) ) {
-                entry.ref->compound_restart();
+            A113_ASSERT_OR( entry.ref->compound_is_stable() ) continue;
+            if( A113_OK != entry.restart_if( *entry.ref, {
+                .attempt = entry._failed_restart_cnt
+            } ) ) {
+                A113_ASSERT_OR( A113_OK == entry.ref->compound_restart() ) {
+                    ++entry._failed_restart_cnt;
+                } else {
+                    entry._failed_restart_cnt = 0;
+                }
             }
         }
     }
