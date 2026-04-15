@@ -59,6 +59,29 @@ public:
                 return A113_OK;
             }
         }, {
+            .text = "eval",
+            .opts = {
+                { .sh0rt = 's', .l0ng = "string", .arg = Fastcli::Arg_text, .fast_id = 0x0 }
+            },
+            .fnc = [ this ] ( auto& stencil_ ) -> status_t {
+                double result = 0.0;
+
+                char opt;  while( opt = stencil_.next() ) {
+                    switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                        case 's': {
+                            MDN_ASSERT_OR( A113_OK == _exp.parse( stencil_.arg_text() ) ) {
+                                stencil_ += "eval: parse error.";
+                                return A113_ERR_BADARG;
+                            }
+                            _exp.solve( &result );
+                            stencil_( "eval: {}.", result );
+                        break; }
+                    }
+                }
+    
+                return A113_OK;
+            }
+        }, {
             .text = "roots",
             .opts = {
                 { .sh0rt = 'c', .l0ng = "coeffs", .arg = Fastcli::Arg_f64, .fast_id = 0x0, .argc = Fastcli::Argc_multi_compact }
@@ -91,7 +114,8 @@ public:
         a113::Dispenser< std::string >   cmd_out  = { a113::DispenserMode_Trylock };
     } _guix;
 
-    a113::text::Fastcli   _cli;
+    a113::text::Fastcli             _cli;
+    a113::text::Fastexp< double >   _exp;
 
 public:
     MDN_DOCK_NAME_FNC override { return "cli"; }

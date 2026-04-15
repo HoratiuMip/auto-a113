@@ -52,7 +52,7 @@ public:
      */
     struct config_t {
         std::string   delim_chrs  = " \t\n";
-        std::string   xtra_chrs   = ".,_/+-?!:=~";
+        std::string   xtra_chrs   = ".,_*/+-?!:=~()[]^";
         std::string   esc_chrs    = "\\";
         std::string   qte_chrs    = "\"\'";
         std::string   var_chrs    = "$";

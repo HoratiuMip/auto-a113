@@ -1,5 +1,5 @@
 /**
- * @file: OSp/core.cpp
+ * @file: osp/core.cpp
  * @brief: Implementation file.
  * @details: -
  * @authors: Vatca "Mipsan" Tudor-Horatiu

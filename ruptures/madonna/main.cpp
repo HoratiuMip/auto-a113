@@ -13,7 +13,5 @@ int main( int argc, char* argv[] ) {
     mdn::BridgE.start();
     mdn::BridgE.wait_stop();
 
-    a113::mdn_1::vec_t v;
-
     return 0x0;
 }
