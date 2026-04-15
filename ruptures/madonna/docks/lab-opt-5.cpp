@@ -7,7 +7,15 @@ struct Dock : dock_t {
 public:
     Dock( void ) {
         f     = [] MDN_FNC_2D_L(double) {
-            return 10.0*x1*x1 + 6.0*x2*x2 + 8.0*pow(x1,4)*pow(x2,4) + 24;
+            text::Fastexp< double > exp; exp.bind( [ x1, x2 ] ( std::string_view var_, double* res_ ) -> status_t {
+                if( var_ == "x1" ) { *res_ = x1; return A113_OK; }
+                if( var_ == "x2" ) { *res_ = x2; return A113_OK; }
+                return A113_ERR_NOT_FOUND;
+            } );
+            double res = 0.0;
+            exp.parse( "10.0*x1*x1 + 6.0*x2*x2 + 8.0*x1^4*x2^4 + 24" );
+            exp.resolve( &res );
+            return res;
         };
         fd[0] = [] MDN_FNC_2D_L(double) {
             return 20.0*x1 + 32.0*pow(x1,3)*pow(x2,4);

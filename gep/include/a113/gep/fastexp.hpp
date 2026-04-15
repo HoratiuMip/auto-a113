@@ -8,11 +8,14 @@
 
 #include <a113/gep/core.hpp>
 #include <a113/gep/text_utils.hpp>
-#
+
 namespace a113::text {
 
 template< typename _precision_t_ >
 class Fastexp {
+public:
+    typedef   std::function< status_t( std::string_view, _precision_t_* ) >   defr_cb_t;
+
 _A113_PROTECTED:
     struct _op_t {
         uint8_t   precedence   = 0x0;
@@ -21,7 +24,7 @@ _A113_PROTECTED:
 
     struct _sym_t {
         enum Typ_ {
-            Typ_Unknwn, Typ_Num, Typ_Op, Typ_Paro, Typ_Parc
+            Typ_Unknwn, Typ_Num, Typ_Op, Typ_Paro, Typ_Parc, Typ_Defr
         };
 
         std::string   val   = {};
@@ -38,8 +41,9 @@ _A113_PROTECTED:
     };
 
 _A113_PROTECTED:
-    std::deque< _sym_t >                               _rpn      = {};
-    const std::unordered_map< unsigned char, _op_t >   _op_map   = {
+    std::deque< _sym_t >                         _rpn      = {};
+    defr_cb_t                                    _defr     = {};
+    std::unordered_map< unsigned char, _op_t >   _op_map   = {
         { '^', { 0x0C, 2 } },
         { '/', { 0x0B, 2 } },
         { '*', { 0x0B, 2 } },
@@ -47,16 +51,36 @@ _A113_PROTECTED:
         { '-', { 0x0A, 2 } }
     };
 
+public:
+    status_t bind( defr_cb_t defr_ ) {
+        _defr = std::move( defr_ );
+        return A113_OK;
+    }
+
 _A113_PROTECTED:
     bool _is_cvt_to_unary( const char c_, _parse_ctx_t* ctx_ ) const {
         if( c_ != '+' && c_ != '-' ) return false;
-        return ( ctx_->prev_typ != _sym_t::Typ_Num && ctx_->prev_typ != _sym_t::Typ_Parc ) 
+        return ( ctx_->prev_typ != _sym_t::Typ_Num && ctx_->prev_typ != _sym_t::Typ_Defr && ctx_->prev_typ != _sym_t::Typ_Parc ) 
                || 
                ctx_->prev_typ == _sym_t::Typ_Unknwn;
     }
 
     A113_inline bool _is_digit( const char c_ ) const {
         return c_ >= '0' && c_ <= '9';
+    }
+
+    A113_inline bool _is_alpha( const char c_ ) const {
+        return ( c_ >= 'a' && c_ <= 'z' )
+               ||
+               ( c_ >= 'A' && c_ <= 'Z' );
+    }
+
+    A113_inline bool _is_word( const char c_ ) const {
+        return this->_is_digit( c_ )
+               ||
+               this->_is_alpha( c_ )
+               ||
+               c_ == '_';
     }
 
     A113_inline bool _is_white( const char c_ ) const {
@@ -72,6 +96,17 @@ _A113_PROTECTED:
         };
         auto push_rpn = [ ctx_ ] ( _sym_t&& sym_ ) -> void {
             ctx_->rpn->emplace_back( std::move( sym_ ) );
+        };
+        auto drain_precedence = [ &holding, &push_rpn] ( const unsigned char pr_ ) -> void {
+            while( not holding.empty() && holding.front().typ == _sym_t::Typ_Op ) {
+                auto& top = holding.front();
+                
+                if( top.op.precedence >= pr_ ) {
+                    push_rpn( std::move( top ) ); holding.pop_front();
+                } else {
+                    break;
+                }
+            }
         };
 
         for( int idx = 0x0; idx < ctx_->exp.length(); ++idx ) { 
@@ -95,6 +130,32 @@ _A113_PROTECTED:
                 idx += diff - 1;
                 goto l_type_asserted;
             } 
+
+            if( this->_is_alpha( c ) ) {
+                const char* begin = ctx_->exp.data() + idx;
+                const char* end   = std::find_if( begin, ctx_->exp.data() + ctx_->exp.length(), [ this ] ( const char c_ ) -> bool {
+                    return not this->_is_word( c_ );
+                } );
+                const size_t diff = end - begin;
+                
+                std::string str{ begin, diff };
+
+                if( *end == '(' ) {
+                    _op_t next_op = {
+                        .precedence = 0xFE,
+                        .arg_count  = 1
+                    };
+                    drain_precedence( next_op.precedence );
+                    push_holding( { .val = std::move( str ), .typ = _sym_t::Typ_Op, .op = std::move( next_op ) } );
+                    ctx_->prev_typ = _sym_t::Typ_Op;
+                } else {
+                    push_rpn( { .val = std::move( str ), .typ = _sym_t::Typ_Defr } );
+                    ctx_->prev_typ = _sym_t::Typ_Defr;
+                }
+
+                idx += diff - 1;
+                goto l_type_asserted;
+            }
 
             if( c == '(' ) {
                 push_holding( { .val = { '(' }, .typ = _sym_t::Typ_Paro } );
@@ -125,26 +186,8 @@ _A113_PROTECTED:
                     next_op.arg_count  = 1;
                 }
 
-                while( not holding.empty() ) {
-                    auto& top = holding.front();
-
-                    switch( top.typ ) {
-                        case _sym_t::Typ_Op: {
-                            if( top.op.precedence >= next_op.precedence ) {
-                                push_rpn( std::move( top ) ); holding.pop_front();
-                            } else {
-                                goto l_loop_break;
-                            }
-                        break; }
-
-                        default: goto l_loop_break;
-                    }
-
-                    continue;
-                l_loop_break:
-                    break;
-                }
-                push_holding( { .val = { c }, .typ = _sym_t::Typ_Op, .op = next_op } );
+                drain_precedence( next_op.precedence );
+                push_holding( { .val = { c }, .typ = _sym_t::Typ_Op, .op = std::move( next_op ) } );
                 ctx_->prev_typ = _sym_t::Typ_Op;
                 goto l_type_asserted;
             }
@@ -176,8 +219,8 @@ public:
         return A113_OK;
     }
 
-    status_t solve( _precision_t_* result_ ) {
-        std::deque< _precision_t_ > solver;
+    status_t resolve( _precision_t_* result_ ) {
+        std::deque< _precision_t_ > resolver;
 
         for( const auto& sym : _rpn ) {
             switch( sym.typ ) {
@@ -189,15 +232,22 @@ public:
                     auto [ ptr, ec ] = std::from_chars( begin, end, cvt );
                     if( ptr != end || ec != std::errc{ 0x0 } ) return A113_ERR_BADARG;
 
-                    solver.push_front( cvt );
+                    resolver.push_front( cvt );
+                break; }
+
+                case _sym_t::Typ_Defr: {
+                    _precision_t_ res;
+                    A113_ASSERT_OR( A113_OK == this->_defr( sym.val, &res ) ) return A113_ERR_USERCALL;
+
+                    resolver.push_front( res );
                 break; }
                 
                 case _sym_t::Typ_Op: {
                     _precision_t_ regs[ sym.op.arg_count ];
 
                     for( uint8_t idx = 0x0; idx < sym.op.arg_count; ++idx ) {
-                        A113_ASSERT_OR( not solver.empty() ) return A113_ERR_BADARG;
-                        regs[ idx ] = solver.front(); solver.pop_front();
+                        A113_ASSERT_OR( not resolver.empty() ) return A113_ERR_BADARG;
+                        regs[ idx ] = resolver.front(); resolver.pop_front();
                     }
 
                     _precision_t_ collapsed = _precision_t_{ 0x0 };
@@ -206,6 +256,9 @@ public:
                             switch( hash( sym.val ) ) {
                                 case hash( "+" ): collapsed = regs[ 0x0 ]; break;
                                 case hash( "-" ): collapsed = -regs[ 0x0 ]; break;
+                                case hash( "sin" ): collapsed = std::sin( regs[ 0x0 ] ); break;
+                                case hash( "cos" ): collapsed = std::cos( regs[ 0x0 ] ); break;
+                                case hash( "tan" ): collapsed = std::tan( regs[ 0x0 ] ); break;
                             }
                         break; }
 
@@ -219,14 +272,11 @@ public:
                         }
                         break; }
                     }
-
-                    solver.push_front( collapsed );
-
+                    resolver.push_front( collapsed );
                 break; }
             }
         }
-
-        *result_ = solver.front();
+        *result_ = resolver.front();
         return A113_OK;
     }
 

@@ -4,6 +4,7 @@
 #include <a113/gep/fastexp.hpp>
 #include <a113/osp/dispenser.hpp>
 #include <a113/osp/madonna.hpp>
+using namespace a113;
 
 #include <a113/clkwrk/immersive.hpp>
 
@@ -30,16 +31,16 @@ public:
 public:
     proxy_t( 
         MDN_IN   const std::string&                      name_, 
-        MDN_IN   const a113::text::Fastcli::config_t&    cli_config_, 
-        MDN_IN   const a113::text::Fastcli::cmd_map_t&   cli_cmd_map_
+        MDN_IN   const text::Fastcli::config_t&    cli_config_, 
+        MDN_IN   const text::Fastcli::cmd_map_t&   cli_cmd_map_
     ) : _name{ name_ }, _cli{ cli_config_, cli_cmd_map_ } {}
 
 protected:
     std::string           _name   = {};
-    a113::text::Fastcli   _cli    = {};
+    text::Fastcli   _cli    = {};
 
 public:
-    a113::status_t pass( const std::string& text_, std::string* out_ ) {
+    status_t pass( const std::string& text_, std::string* out_ ) {
         return _cli.execute( text_, out_ );
     }
 
@@ -49,8 +50,8 @@ public:
     virtual std::string_view name( void )
 
 #define MDN_DOCK_GUIX_FNC \
-    virtual a113::status_t guix_frame( \
-        MDN_IN   const a113::clkwrk::Immersive::frame_cb_args_t&   args_ \
+    virtual status_t guix_frame( \
+        MDN_IN   const clkwrk::Immersive::frame_cb_args_t&   args_ \
     )
 
 class dock_t {
@@ -69,11 +70,20 @@ protected:
 #define MDN_AUTO_INSTALL( t, ... ) \
     static struct _mdn_installer_##t##_t_ { \
         _mdn_installer_##t##_t_( void ) { \
-            BridgE.install( a113::HVec< t >::make( __VA_ARGS__ ) ); \
+            BridgE.install( HVec< t >::make( __VA_ARGS__ ) ); \
         } \
     } _mdn_installer_##t##_; 
 
-class _bridge_t : public a113::bridge_t {
+class var_t {
+public:
+    enum What_ { Null, Scalar };
+
+public:
+    What_      what   = Null;
+    std::any   val    = {};
+};
+
+class _bridge_t : public bridge_t {
 public:
     _bridge_t( void ) : bridge_t{ MDN_VERSION_STR } {
         logger->info( "bridge: init done." );
@@ -81,15 +91,17 @@ public:
 
 // ======================= Fields =======================
 public:
-    a113::clkwrk::Immersive                               imm           = {};
+    clkwrk::Immersive                                     imm           = {};
+    
+    Dispenser< std::map< std::string, HVec< var_t > > >   var_reg       = { DispenserMode_Lock };
 
 protected:
-    std::atomic< a113::status_t >                         _status       = { A113_ERR_TERMINATED };
+    std::atomic< status_t >                               _status       = { A113_ERR_TERMINATED };
 
-    std::map< std::string_view, a113::HVec< proxy_t > >   _proxys       = {};
+    std::map< std::string_view, HVec< proxy_t > >         _proxys       = {};
     std::recursive_mutex                                  _proxys_mtx   = {};
 
-    std::map< std::string_view, a113::HVec< dock_t > >    _docks        = {};
+    std::map< std::string_view, HVec< dock_t > >          _docks        = {};
     std::recursive_mutex                                  _docks_mtx    = {};
 
     std::thread                                           _th_guix      = {};
@@ -100,8 +112,8 @@ public:
     A113_inline void wait_stop( void ) { _status.wait( A113_OK, std::memory_order_seq_cst ); this->stop(); }
 
 public:
-    a113::status_t install(
-        MDN_IN   a113::HVec< proxy_t>   proxy_
+    status_t install(
+        MDN_IN   HVec< proxy_t>   proxy_
     ) {
         MDN_ASSERT_OR( proxy_ ) {
             logger->error( "bridge: install proxy: null proxy." );
@@ -139,8 +151,8 @@ public:
         logger->info( "bridge: uninstalled proxy \"{}\".", proxy_name_ );
     }
 
-    a113::status_t install( 
-        MDN_IN   a113::HVec< dock_t >    dock_ 
+    status_t install( 
+        MDN_IN   HVec< dock_t >    dock_ 
     ) {
         MDN_ASSERT_OR( dock_ ) {
             logger->error( "bridge: install dock: null dock." );
@@ -181,7 +193,7 @@ public:
     }
 
 public:
-    a113::status_t start( void ) {
+    status_t start( void ) {
         MDN_ASSERT_OR( not _th_guix.joinable() && this->status() != A113_OK ) {
             logger->error( "bridge: start: already running." );
             return A113_ERR_LOGIC;
@@ -189,12 +201,12 @@ public:
 
         _status.store( A113_OK, std::memory_order_release );
 
-        _th_guix = std::thread( &a113::clkwrk::Immersive::main, &imm, 0, nullptr, a113::clkwrk::Immersive::config_t{
+        _th_guix = std::thread( &clkwrk::Immersive::main, &imm, 0, nullptr, clkwrk::Immersive::config_t{
             .ctx        = nullptr,
             .title      = MDN_VERSION_STR,
             .width      = 680,
             .height     = 680,
-            .srf_bgn_as = a113::clkwrk::Immersive::SrfBeginAs_Default,
+            .srf_bgn_as = clkwrk::Immersive::SrfBeginAs_Default,
             .init_cb    = [ this ] ( const auto& args_ ) -> auto {
                 ImGui::StyleColorsClassic();     
                 imm.imgui.io->FontGlobalScale = 1.22f;
@@ -227,7 +239,7 @@ public:
     }
 
 public:
-    a113::status_t proxy_pass( 
+    status_t proxy_pass( 
         MDN_IN    std::string_view     proxy_name_, 
         MDN_IN    const std::string&   command_, 
         MDN_OUT   std::string*         out_

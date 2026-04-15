@@ -59,6 +59,37 @@ public:
                 return A113_OK;
             }
         }, {
+            .text = "let",
+            .opts = {
+                { .sh0rt = 'i', .l0ng = "id", .arg = Fastcli::Arg_text, .fast_id = 0x0 },
+                { .sh0rt = 'v', .l0ng = "value", .arg = Fastcli::Arg_f64, .fast_id = 0x1 }
+            },
+            .fnc = [ this ] ( auto& stencil_ ) -> status_t {
+                std::string id;
+                double      value;
+
+                char opt; while( opt = stencil_.next() ) {
+                    switch( opt ) { A113_TEXT_FASTCLI_DEFAULT_STENCIL_CASES
+                        case 'i': { id = std::move( stencil_.arg_text() ); break; }
+                        case 'v': { value = stencil_.arg_f64(); break; }
+                    }
+                }
+
+                MDN_ASSERT_OR( not id.empty() ) {
+                    stencil_ += "let: id not specified.";
+                    return A113_ERR_LOGIC;
+                }
+
+                auto var_reg = BridgE.var_reg.control();
+                ( *var_reg )[ id ] = HVec< var_t >::make( var_t{
+                    .what = var_t::Scalar,
+                    .val  = value
+                } );
+
+                stencil_( "let: {} = {}", id, value );
+                return A113_OK;
+            }
+        }, {
             .text = "eval",
             .opts = {
                 { .sh0rt = 's', .l0ng = "string", .arg = Fastcli::Arg_text, .fast_id = 0x0 }
@@ -73,7 +104,7 @@ public:
                                 stencil_ += "eval: parse error.";
                                 return A113_ERR_BADARG;
                             }
-                            _exp.solve( &result );
+                            _exp.resolve( &result );
                             stencil_( "eval: {}.", result );
                         break; }
                     }
@@ -106,7 +137,19 @@ public:
             }
         }
         }
-    } {}
+    } {
+        _exp.bind( [] ( std::string_view var_, double* res_ ) -> status_t {
+            auto var_reg = BridgE.var_reg.watch();
+            auto itr     = var_reg->find( var_.data() );
+            MDN_ASSERT_OR( itr != var_reg->end() ) return A113_ERR_NOT_FOUND;
+
+            auto& var = itr->second;
+            MDN_ASSERT_OR( var->what == var_t::Scalar ) return A113_ERR_NOT_IMPL;
+
+            *res_ = std::any_cast< double >( var->val );
+            return A113_OK;
+        } );
+    }
 
 public:
     struct _guix_t {
@@ -114,8 +157,8 @@ public:
         a113::Dispenser< std::string >   cmd_out  = { a113::DispenserMode_Trylock };
     } _guix;
 
-    a113::text::Fastcli             _cli;
-    a113::text::Fastexp< double >   _exp;
+    text::Fastcli             _cli;
+    text::Fastexp< double >   _exp;
 
 public:
     MDN_DOCK_NAME_FNC override { return "cli"; }
