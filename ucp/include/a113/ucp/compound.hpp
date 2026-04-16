@@ -24,11 +24,17 @@ _A113_PROTECTED:
     TaskHandle_t   _tsk_main   = NULL;
 
 _A113_PROTECTED:
-    static void main( void* arg_ ) {
+    bool _main_should_stop( void ) {
+        return this->went_critical();
+    }
+
+_A113_PROTECTED:
+    static void _main( void* arg_ ) {
         auto* self = ( CompoundCluster_FreeRTOS* )arg_;
-    for( ;; ) {
-        vTaskDelay( self->_config.iterate_interval_ms );
-        self->iterate_register();
+
+    for(; not self->_main_should_stop() ;) {
+        vTaskDelay( pdMS_TO_TICKS( self->_config.iterate_interval_ms ) );
+        A113_ASSERT_OR( A113_OK == self->iterate_register() ) break;
     }
         vTaskDelete( NULL );
     }
@@ -38,7 +44,7 @@ public:
         _config = config_;
 
         A113_ASSERT_OR( pdPASS == xTaskCreate(
-            &CompoundCluster_FreeRTOS::main, _config.task_name, _config.task_stack_depth, this, _config.task_priority, &_tsk_main
+            &CompoundCluster_FreeRTOS::_main, _config.task_name, _config.task_stack_depth, this, _config.task_priority, &_tsk_main
         ) ) {
             return A113_ERR_SYSCALL;
         }

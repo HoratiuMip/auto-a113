@@ -2,7 +2,7 @@
 
 #include <a113/gep/fastcli.hpp>
 #include <a113/gep/fastexp.hpp>
-#include <a113/osp/dispenser.hpp>
+#include <a113/gep/dispenser.hpp>
 #include <a113/osp/madonna.hpp>
 using namespace a113;
 

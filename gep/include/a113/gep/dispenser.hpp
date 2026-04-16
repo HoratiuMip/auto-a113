@@ -1,12 +1,12 @@
 #pragma once
 /**
- * @file: osp/dispenser.hpp
+ * @file: gep/dispenser.hpp
  * @brief: 
  * @details
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <a113/osp/core.hpp>
+#include <a113/gep/core.hpp>
 
 namespace a113 {
 
@@ -114,7 +114,7 @@ public:
     A113_inline _dispenser_acquire< _T_, true > control( void ); 
 
 public:
-    [[nodiscard]] A113_inline HVec< _T_ > hold_latest( void ) {
+    [[nodiscard]] A113_inline HVec< _T_ > hold( void ) {
         switch( _mode ) {
             case DispenserMode_Lock: [[fallthrough]];
             case DispenserMode_Trylock: return _M_.lock.block;
@@ -122,7 +122,7 @@ public:
             case DispenserMode_Swap: [[fallthrough]];
             case DispenserMode_ReverseSwap: return _M_.swap.blocks[ _M_.swap.ctl_idx.load( std::memory_order_relaxed ) ];
         }
-        A113_UNREACHABLE;
+        return nullptr;
     }
 
 };
