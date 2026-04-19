@@ -26,6 +26,8 @@ endif()
 # OpenGL
 A113_Fnc_PopExcom( "OpenGL" )
 if( A113_Flag_ExcomActive )
+    set( GLFW_INSTALL OFF CACHE BOOL "" FORCE )
+
     A113_Fnc_CloneRepo( "https://github.com/g-truc/glm.git" "1.0.1" glm "${_excom_dir}" )
     A113_Fnc_CloneRepo( "https://github.com/glfw/glfw.git" "3.4" glfw "${_excom_dir}" )
     A113_Fnc_CloneRepo( "https://github.com/Perlmint/glew-cmake.git" "glew-cmake-2.2.0" glew "${_excom_dir}" )

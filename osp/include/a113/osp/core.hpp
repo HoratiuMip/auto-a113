@@ -12,6 +12,9 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#include <csignal>
+#include <cerrno>
+
 #ifdef A113_TARGET_OS_WINDOWS
     #define WINVER 0x0A00
     #include <winsock2.h>
@@ -34,9 +37,9 @@
     
     #include <sys/socket.h>
     #include <netinet/in.h>
+    #include <netinet/if_ether.h>
+    #include <netinet/ip.h>
     #include <arpa/inet.h>
-
-    #include <cerrno>
 #endif
 
 #define A113_SPDLOG_PATTERN "[%Y-%m-%d %H:%M:%S] [%n] [%^%l%$] %v"

@@ -9,7 +9,7 @@
 
 namespace a113::io {
 
-#define _CAGP _conn.addr_str.str(), _conn.port
+#define _CAGP _conn.addr_str.c_str(), _conn.port
 
 /* ===========================================
     Implementation for Windows.
@@ -20,7 +20,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::bind( ipv4_addr_t addr_, ipv4_port_t por
     A113_ASSERT_OR( false ==_conn.alive.load( std::memory_order_acquire ) ) {
         A113_LOGE_INT( 
             A113_ERR_WOULD_OVRWR, "Binding whilst alive {}:{} -> {}:{}.",
-             _CAGP, ipv4_addr_str_t::from( addr_ ).str(), port_ 
+             _CAGP, ipv4_addr_str_t::from( addr_ ).c_str(), port_ 
         );
         return A113_ERR_WOULD_OVRWR;
     }
@@ -192,7 +192,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::bind( ipv4_addr_t addr_, ipv4_port_t por
     A113_ASSERT_OR( false ==_conn.alive.load( std::memory_order_acquire ) ) {
         A113_LOGE_INT( 
             A113_ERR_WOULD_OVRWR, "Binding whilst alive {}:{} -> {}:{}.",
-             _CAGP, ipv4_addr_str_t::from( addr_ ).str(), port_ 
+             _CAGP, ipv4_addr_str_t::from( addr_ ).c_str(), port_ 
         );
         return A113_ERR_WOULD_OVRWR;
     }

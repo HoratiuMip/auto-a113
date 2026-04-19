@@ -60,7 +60,7 @@ public:
     }
 
     virtual status_t compound_restart( void* ctxd_ = nullptr, void* ctxu_ = nullptr, void* ctxud_ = nullptr ) {
-        this->compound_stop( ctxd_ );
+        (void)this->compound_stop( ctxd_ );
         return this->compound_start( ctxu_, ctxud_ );
     }
 

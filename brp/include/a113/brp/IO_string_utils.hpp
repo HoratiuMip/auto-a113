@@ -23,9 +23,18 @@ struct ipv4_addr_str_t {
     static ipv4_addr_str_t from( ipv4_addr_t addr_ );
     static ipv4_addr_t from( const char* addr_str_ );
 
-    [[deprecated]] char* get( void ) { return buf; } /* Legacy. */
-    char* str( void ) { return buf; }
+    char* c_str( void ) { return buf; }
     operator char* ( void ) { return buf; }
+};
+
+struct ipv4_addr_pack_t : public ipv4_addr_str_t {
+    ipv4_addr_pack_t( void ) = default;
+    ipv4_addr_pack_t( ipv4_addr_t addr_ ) : ipv4_addr_str_t{ ipv4_addr_str_t::from( addr_ ) }, addr{ addr_ } {}
+    ipv4_addr_pack_t( const char* addr_str_ ) : addr{ ipv4_addr_str_t::from( addr_str_ ) } {
+        strncpy( ipv4_addr_str_t::buf, addr_str_, ipv4_addr_str_t::BUF_SIZE );
+    }
+
+    ipv4_addr_t   addr   = 0x0;
 };
 
 struct bt_addr_str_t {
@@ -40,7 +49,7 @@ struct bt_addr_str_t {
     static bt_addr_str_t from( bt_addr_t addr_, char x_ = 'X' );
     static bt_addr_t from( const bt_addr_str_t& addr_str_ );
 
-    char* str( void ) { return buf; }
+    char* c_str( void ) { return buf; }
     operator char* ( void ) { return buf; }
 };
 
