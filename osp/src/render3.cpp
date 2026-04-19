@@ -5,6 +5,12 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
+#if defined( A113_EXCOM_OPENGL ) && defined( A113_EXCOM_STB ) && defined( A113_EXCOM_TINYOBJ )
+    #define A113_DEPCOM_ELIGIBLE_RENDER3
+#endif
+
+#ifdef A113_DEPCOM_ELIGIBLE_RENDER3
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <a113/osp/render3.hpp>
 
@@ -33,3 +39,5 @@ void ren_target_t::bind( void ) {
 }
 
 } };
+
+#endif

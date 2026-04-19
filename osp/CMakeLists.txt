@@ -15,6 +15,8 @@ target_include_directories( A113_OSp PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include" 
 # Spdlog
 A113_Fnc_PopExcom( "Spdlog" )
 if( A113_Flag_ExcomActive )
+    target_compile_definitions( A113_OSp PUBLIC A113_EXCOM_SPDLOG )
+
     A113_Fnc_CloneRepo( "https://github.com/gabime/spdlog.git" "v1.15.3" spdlog "${_excom_dir}" )
     target_link_libraries( A113_OSp 
         PUBLIC spdlog 
@@ -26,6 +28,8 @@ endif()
 # OpenGL
 A113_Fnc_PopExcom( "OpenGL" )
 if( A113_Flag_ExcomActive )
+    target_compile_definitions( A113_OSp PUBLIC A113_EXCOM_OPENGL )
+
     set( GLFW_INSTALL OFF CACHE BOOL "" FORCE )
 
     A113_Fnc_CloneRepo( "https://github.com/g-truc/glm.git" "1.0.1" glm "${_excom_dir}" )
@@ -45,6 +49,8 @@ endif()
 # STB
 A113_Fnc_PopExcom( "STB" )
 if( A113_Flag_ExcomActive )
+    target_compile_definitions( A113_OSp PUBLIC A113_EXCOM_STB )
+
     A113_Fnc_CloneRepo( "https://github.com/nothings/stb.git" "" stb "${_excom_dir}" )
  
     target_include_directories( A113_OSp
@@ -54,6 +60,8 @@ endif()
 # TinyOBJ
 A113_Fnc_PopExcom( "TinyOBJ" )
 if( A113_Flag_ExcomActive )
+    target_compile_definitions( A113_OSp PUBLIC A113_EXCOM_TINYOBJ )
+
     A113_Fnc_CloneRepo( "https://github.com/tinyobjloader/tinyobjloader.git" "v1.0.6" tinyobj "${_excom_dir}" )
 
     target_include_directories( A113_OSp
@@ -63,6 +71,8 @@ endif()
 # NlohmannJSON
 A113_Fnc_PopExcom( "NlohmannJSON" )
 if( A113_Flag_ExcomActive )
+    target_compile_definitions( A113_OSp PUBLIC A113_EXCOM_NLOHMANNJSON )
+
     A113_Fnc_CloneRepo( "https://github.com/nlohmann/json.git" "v3.12.0" nlohmann_json "${_excom_dir}" )
 
     target_link_libraries( A113_OSp
@@ -75,6 +85,8 @@ endif()
 # Dear ImGUI
 A113_Fnc_PopExcom( "Dear ImGUI" )
 if( A113_Flag_ExcomActive )
+    target_compile_definitions( A113_OSp PUBLIC A113_EXCOM_DEARIMGUI )
+
     A113_Fnc_CloneRepo( "https://github.com/ocornut/imgui.git" "v1.91.9-docking" imgui "${_excom_dir}" )
     A113_Fnc_CloneRepo( "https://github.com/epezent/implot.git" "v0.16" implot "${_excom_dir}" )
     A113_Fnc_JustCloneRepo( "https://github.com/aiekick/ImGuiFileDialog.git" "v0.6.8" imgui_file_dialog "${_excom_dir}" )
@@ -122,6 +134,8 @@ endif()
 # LAPACK
 A113_Fnc_PopExcom( "LAPACK" )
 if( A113_Flag_ExcomActive )
+    target_compile_definitions( A113_OSp PUBLIC A113_EXCOM_LAPACK )
+
     cmake_policy( SET CMP0079 NEW )
     set( LAPACKE ON )
     A113_Fnc_CloneRepo( "https://github.com/Reference-LAPACK/lapack.git" "v3.12.0" lapack "${_excom_dir}" )
