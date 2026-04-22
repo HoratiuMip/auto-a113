@@ -3,8 +3,16 @@ cmake_minimum_required( VERSION 3.28.0 )
 project(
     A113
     VERSION 1.0.0
-    LANGUAGES C CXX Fortran
+    LANGUAGES C CXX
 )
+
+include( CheckLanguage )
+check_language( Fortran )
+if( CMAKE_Fortran_COMPILER )
+    enable_language( Fortran )
+    message( STATUS "[A113] Fortran found." )
+endif()
+
 set( A113_VERSION_MAJOR 1 )
 set( A113_VERSION_MINOR 0 )
 set( A113_VERSION_PATCH 3 )

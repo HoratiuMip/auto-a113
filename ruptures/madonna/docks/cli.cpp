@@ -173,10 +173,12 @@ public:
             ImGui::Separator();
 
             if( enter ) {
-                std::string out;
-                _cli.execute( _guix.cmd_in, &out );
-                auto cmd_out = _guix.cmd_out.control();
-                *cmd_out = std::move( out );
+                std::thread( [ this ] {
+                    std::string out;
+                    _cli.execute( _guix.cmd_in, &out );
+                    auto cmd_out = _guix.cmd_out.control();
+                    *cmd_out = std::move( out );
+                } ).detach();
             }
 
             ImGui::BeginChild( "##_cli_out" );

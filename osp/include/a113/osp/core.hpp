@@ -42,7 +42,7 @@
     #include <arpa/inet.h>
 #endif
 
-#define A113_SPDLOG_PATTERN "[%Y-%m-%d %H:%M:%S] [%n] [%^%l%$] %v"
+#define A113_SPDLOG_PATTERN "[%n] [%^%l%$] %v"
 
 namespace a113 {
 

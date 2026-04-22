@@ -8,12 +8,106 @@
 /* === engine includes === */
 #include <a113/osp/core.hpp>
 /* === stl includes  */
+#include <cmath>
 #include <complex>
 /* === excom includes === */
 #include <lapacke.h>
 
 /* === internal bridge === */
 namespace a113::_mdn {
+
+#ifdef A113_MDN_REAL_T
+    typedef   A113_MDN_REAL_T   real_t;
+#else
+    typedef   float             real_t;
+#endif
+
+template< size_t _N_, typename _pcsn_t_ = real_t > struct arr_t : std::array< _pcsn_t_, _N_ > {
+public:
+    A113_inline _pcsn_t_* get( void ) { return this->data(); }
+    A113_inline const _pcsn_t_* get( void ) const { return this->data(); }
+
+    A113_inline operator _pcsn_t_* ( void ) { return this->get; } 
+    A113_inline operator const _pcsn_t_* ( void ) const { return this->get(); }
+
+public:
+    _pcsn_t_ norm( void ) const {
+        _pcsn_t_ res = 0;
+        for( size_t c = 0x0; c < _N_; ++c ) res += std::pow( (*this)[c], 2 );
+        return std::sqrt( res );
+    }
+
+public:
+    _pcsn_t_ dot( const auto& rhs_ ) const {
+        _pcsn_t_ res = 0;
+        for( size_t c = 0x0; c < _N_ && c < rhs_.size(); ++c ) res += (*this)[c] * rhs_[c];
+        return res;
+    }
+
+public:
+#define _MDN_ARR_OP_(o) \
+    template< typename _T_ > \
+    arr_t< _N_, _pcsn_t_ > operator o ( const _T_& rhs_ ) const requires std::is_arithmetic_v< _T_ > { \
+        arr_t< _N_, _pcsn_t_ > res; \
+        for( size_t c = 0x0; c < _N_; ++c ) { \
+            res[ c ] = (*this)[c] o rhs_; \
+        } \
+        return res; \
+    }
+    _MDN_ARR_OP_(+)
+    _MDN_ARR_OP_(-)
+    _MDN_ARR_OP_(*)
+    _MDN_ARR_OP_(/)
+#undef _MDN_ARR_OP_
+#define _MDN_ARR_OP_(o) \
+    arr_t< _N_, _pcsn_t_ > operator o ( const auto& rhs_ ) const { \
+        arr_t< _N_, _pcsn_t_ > res; \
+        for( size_t c = 0x0; c < _N_ && c < rhs_.size(); ++c ) { \
+            res[ c ] = (*this)[c] o rhs_[c]; \
+        } \
+        return res; \
+    }
+    _MDN_ARR_OP_(+)
+    _MDN_ARR_OP_(-)
+    _MDN_ARR_OP_(*)
+    _MDN_ARR_OP_(/)
+#undef _MDN_ARR_OP_
+#define _MDN_ARR_OPE_(oe) \
+    template< typename _T_ > \
+    arr_t< _N_, _pcsn_t_ > & operator oe ( const _T_& rhs_ ) requires std::is_arithmetic_v< _T_ > { \
+        for( size_t c = 0x0; c < _N_; ++c ) { \
+            (*this)[c] oe rhs_; \
+        } \
+        return *this; \
+    } 
+    _MDN_ARR_OPE_(+=)
+    _MDN_ARR_OPE_(-=)
+    _MDN_ARR_OPE_(*=)
+    _MDN_ARR_OPE_(/=)
+#undef _MDN_ARR_OPE_
+#define _MDN_ARR_OPE_(oe) \
+    arr_t< _N_, _pcsn_t_ > & operator oe ( const auto& rhs_ ) { \
+        for( size_t c = 0x0; c < _N_ && c < rhs_.size(); ++c ) { \
+            (*this)[c] oe rhs_[c]; \
+        } \
+        return *this; \
+    } 
+    _MDN_ARR_OPE_(+=)
+    _MDN_ARR_OPE_(-=)
+    _MDN_ARR_OPE_(*=)
+    _MDN_ARR_OPE_(/=)
+#undef _MDN_ARR_OPE_
+
+    arr_t< _N_, _pcsn_t_ > operator - ( void ) const {
+        return { -(*this)[0x0], -(*this)[0x1] };
+    }
+
+public:
+    _pcsn_t_ x( void ) const requires( _N_ >= 1 ) { return (*this)[0x0]; }
+    _pcsn_t_ y( void ) const requires( _N_ >= 2 ) { return (*this)[0x1]; }
+    _pcsn_t_ z( void ) const requires( _N_ >= 3 ) { return (*this)[0x2]; }
+
+};
 
 class _bridge_t {
 public:
@@ -37,37 +131,31 @@ public:
 /* === working structures  === */
 namespace a113::mdn_0 { using namespace _mdn;
 
-#ifdef A113_MDN_REAL_T
-    typedef   A113_MDN_REAL_T   real_t;
-#else
-    typedef   float             real_t;
-#endif
-
 enum DiscDiffMth_ {
     DiscDiffMth_FwdEuler,
     DiscDiffMth_Tustin
 };
 
-template< typename _FTYPE_v_ > struct vec2_t {
-    _FTYPE_v_   x;
-    _FTYPE_v_   y;
+template< typename _pcsn_t_ = real_t > struct vec2_t {
+    _pcsn_t_   x;
+    _pcsn_t_   y;
 };
 
-template< typename _FTYPE_v_ > using fnc_1d_t = std::function< _FTYPE_v_( _FTYPE_v_ ) >;
-template< typename _FTYPE_v_ > using fnc_2d_t = std::function< _FTYPE_v_( _FTYPE_v_, _FTYPE_v_ ) >;
-#define MDN_FNC_2D_L( _FTYPE_v_ ) ( _FTYPE_v_ x1, _FTYPE_v_ x2 ) -> _FTYPE_v_
+template< typename _pcsn_t_ = real_t > using fnc_1d_t = std::function< _pcsn_t_( _pcsn_t_ ) >;
+template< typename _pcsn_t_ = real_t > using fnc_2d_t = std::function< _pcsn_t_( _pcsn_t_, _pcsn_t_ ) >;
+#define MDN_FNC_2D_L( _pcsn_t_ ) ( _pcsn_t_ x1, _pcsn_t_ x2 ) -> _pcsn_t_
 
-template< typename _FTYPE_v_ > struct tfc_t {
+template< typename _pcsn_t_ = real_t > struct tfc_t {
     int        n     = 0;
     int        m     = 0;
-    _FTYPE_v_*   den   = nullptr;
-    _FTYPE_v_*   num   = nullptr;
+    _pcsn_t_*   den   = nullptr;
+    _pcsn_t_*   num   = nullptr;
 };
 
 
-template< typename _FTYPE_v_ >
-_FTYPE_v_ linspace_n( _FTYPE_v_* v_, int n_, _FTYPE_v_ low_, _FTYPE_v_ upp_ ) {
-    _FTYPE_v_ step = ( upp_ - low_ ) / n_;
+template< typename _pcsn_t_ = real_t >
+_pcsn_t_ linspace_n( _pcsn_t_* v_, int n_, _pcsn_t_ low_, _pcsn_t_ upp_ ) {
+    _pcsn_t_ step = ( upp_ - low_ ) / n_;
     for( int n = 0; n < n_; ++n ) {
         v_[ n ] = low_;
         low_ += step;
@@ -75,26 +163,26 @@ _FTYPE_v_ linspace_n( _FTYPE_v_* v_, int n_, _FTYPE_v_ low_, _FTYPE_v_ upp_ ) {
     return step;
 }
  
-template< typename _FTYPE_v_, typename _Op_ >
-_FTYPE_v_ roam_acc_2( _FTYPE_v_* v1_, _FTYPE_v_* v2_, int n_, _FTYPE_v_ acc_, _Op_ op_ ) {
+template< typename _pcsn_t_ = real_t, typename _Op_ >
+_pcsn_t_ roam_acc_2( _pcsn_t_* v1_, _pcsn_t_* v2_, int n_, _pcsn_t_ acc_, _Op_ op_ ) {
     for( int i = 0; i < n_; ++i ) acc_ += op_( v1_[i], v2_[i] );
     return acc_;
 }
 
 
-template< typename _FTYPE_v_ >
-status_t roots( const _FTYPE_v_* co_, int n_, _FTYPE_v_* rr_, _FTYPE_v_* ri_ ) {
-    _FTYPE_v_ A[ n_ ][ n_ ]; memset( A, 0x0, n_*n_*sizeof( _FTYPE_v_ ) );
+template< typename _pcsn_t_ = real_t >
+status_t roots( const _pcsn_t_* co_, int n_, _pcsn_t_* rr_, _pcsn_t_* ri_ ) {
+    _pcsn_t_ A[ n_ ][ n_ ]; memset( A, 0x0, n_*n_*sizeof( _pcsn_t_ ) );
 
     for( int i = 0x0; i < n_; ++i ) {
         A[ 0x0 ][ i ] = -co_[ i+1 ] / co_[ 0x0 ];
-        if( i != n_-1 ) A[ i+1 ][ i ] = _FTYPE_v_{1};
+        if( i != n_-1 ) A[ i+1 ][ i ] = _pcsn_t_{1};
     }
 
     int info;   
-    if constexpr( std::is_same_v< float, _FTYPE_v_ > ) {
+    if constexpr( std::is_same_v< float, _pcsn_t_ > ) {
         info = LAPACKE_sgeev( LAPACK_ROW_MAJOR, 'N', 'N', n_, (float*)A, n_, rr_, ri_, nullptr, 1, nullptr, 1 );
-    } else if constexpr( std::is_same_v< double, _FTYPE_v_ > ) {
+    } else if constexpr( std::is_same_v< double, _pcsn_t_ > ) {
         info = LAPACKE_dgeev( LAPACK_ROW_MAJOR, 'N', 'N', n_, (double*)A, n_, rr_, ri_, nullptr, 1, nullptr, 1 );
     }
     A113_ASSERT_OR( info == 0x0 ) return A113_ERR_EXCOMCALL;
@@ -102,14 +190,14 @@ status_t roots( const _FTYPE_v_* co_, int n_, _FTYPE_v_* rr_, _FTYPE_v_* ri_ ) {
 }   
 
 
-template< typename _FTYPE_v_ >
-status_t invm( _FTYPE_v_* m_, int n_ ) {
+template< typename _pcsn_t_ = real_t >
+status_t invm( _pcsn_t_* m_, int n_ ) {
     int info = 0x0;
     int ipiv[ n_ ];
 
-    if constexpr( std::is_same_v< float, _FTYPE_v_ > ) {
+    if constexpr( std::is_same_v< float, _pcsn_t_ > ) {
         info = LAPACKE_sgetrf( LAPACK_ROW_MAJOR, n_, n_, m_, n_, ipiv );
-    } else if constexpr( std::is_same_v< double, _FTYPE_v_ > ) {
+    } else if constexpr( std::is_same_v< double, _pcsn_t_ > ) {
         info = LAPACKE_dgetrf( LAPACK_ROW_MAJOR, n_, n_, m_, n_, ipiv );
     }
     A113_ASSERT_OR( info == 0x0 ) {
@@ -117,9 +205,9 @@ status_t invm( _FTYPE_v_* m_, int n_ ) {
         return A113_ERR_FLOW;
     }
 
-    if constexpr( std::is_same_v< float, _FTYPE_v_ > ) {
+    if constexpr( std::is_same_v< float, _pcsn_t_ > ) {
         info = LAPACKE_sgetri( LAPACK_ROW_MAJOR, n_, m_, n_, ipiv );
-    } else if constexpr( std::is_same_v< double, _FTYPE_v_ > ) {
+    } else if constexpr( std::is_same_v< double, _pcsn_t_ > ) {
         info = LAPACKE_dgetri( LAPACK_ROW_MAJOR, n_, m_, n_, ipiv );
     }
     A113_ASSERT_OR( info == 0x0 ) {
@@ -131,9 +219,9 @@ status_t invm( _FTYPE_v_* m_, int n_ ) {
 }
 
 
-template< typename _FTYPE_v_ >
-_FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FTYPE_v_* dy_h_, _FTYPE_v_* du_h_, _FTYPE_v_ u_, _FTYPE_v_ t_ ) {
-    _FTYPE_v_ dny = num_[ m_-1 ] * u_;
+template< typename _pcsn_t_ = real_t >
+_pcsn_t_ tfc_step_fwdeul( _pcsn_t_* den_, int n_, _pcsn_t_* num_, int m_, _pcsn_t_* dy_h_, _pcsn_t_* du_h_, _pcsn_t_ u_, _pcsn_t_ t_ ) {
+    _pcsn_t_ dny = num_[ m_-1 ] * u_;
 
     du_h_[ 0x1 ] = du_h_[ 0x0 ];
     du_h_[ 0x0 ] = u_;
@@ -141,7 +229,7 @@ _FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FT
     int ui = 0x0;
     for( int ord = 1; ord < m_; ++ord ) {
         const int i       = ord<<1;
-        const _FTYPE_v_ d = ( du_h_[ ui ] - du_h_[ ui+1 ] );
+        const _pcsn_t_ d = ( du_h_[ ui ] - du_h_[ ui+1 ] );
 
         du_h_[ i+1 ] = du_h_[ i ];
         du_h_[ i ]   = d;
@@ -164,7 +252,7 @@ _FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FT
 
     for( int ord = n_-2; ord >= 0; --ord ) {
         const int i       = ord<<1;
-        const _FTYPE_v_ d = (dy_h_[ li ] + dy_h_[ li+1 ]) / 2;
+        const _pcsn_t_ d = (dy_h_[ li ] + dy_h_[ li+1 ]) / 2;
 
         dy_h_[ i+1 ] = dy_h_[ i ];
         dy_h_[ i ]   += d*t_;
@@ -175,30 +263,64 @@ _FTYPE_v_ tfc_step_fwdeul( _FTYPE_v_* den_, int n_, _FTYPE_v_* num_, int m_, _FT
     return dy_h_[ 0x0 ];
 }
 
-template< typename _FTYPE_v_ >
-_FTYPE_v_ d1_f1( _FTYPE_v_ x_, _FTYPE_v_ r_, fnc_1d_t< _FTYPE_v_ > fnc_ ) {
-    const _FTYPE_v_ lb = fnc_( x_ - r_ );
-    const _FTYPE_v_ rb = fnc_( x_ + r_ );
+template< typename _pcsn_t_ = real_t >
+_pcsn_t_ d1_f1( _pcsn_t_ x_, _pcsn_t_ r_, fnc_1d_t< _pcsn_t_ > fnc_ ) {
+    const _pcsn_t_ lb = fnc_( x_ - r_ );
+    const _pcsn_t_ rb = fnc_( x_ + r_ );
     return ( rb-lb ) / ( r_*2 ); 
 } 
 
-template< typename _FTYPE_v_ >
-_FTYPE_v_ d2_f1( _FTYPE_v_ x_, _FTYPE_v_ r_, fnc_1d_t< _FTYPE_v_ > fnc_ ) {
-    const _FTYPE_v_ lb = d1_f1( x_ - r_, r_, fnc_ );
-    const _FTYPE_v_ rb = d1_f1( x_ + r_, r_, fnc_ );
+template< typename _pcsn_t_ = real_t >
+_pcsn_t_ d2_f1( _pcsn_t_ x_, _pcsn_t_ r_, fnc_1d_t< _pcsn_t_ > fnc_ ) {
+    const _pcsn_t_ lb = d1_f1( x_ - r_, r_, fnc_ );
+    const _pcsn_t_ rb = d1_f1( x_ + r_, r_, fnc_ );
     return ( rb-lb ) / ( r_*2 ); 
 }
 
-template< typename _FTYPE_v_ >
-status_t d1_f2( _FTYPE_v_ x_, _FTYPE_v_ y_, _FTYPE_v_ r_, _FTYPE_v_* d_, fnc_2d_t< _FTYPE_v_ > fnc_ ) {
-    d_[ 0x0 ] = d1_f1< _FTYPE_v_ >( x_, r_, [ &fnc_, &y_ ] ( _FTYPE_v_ x_ ) -> _FTYPE_v_ { return fnc_( x_, y_ ); } );
-    d_[ 0x1 ] = d1_f1< _FTYPE_v_ >( y_, r_, [ &fnc_, &x_ ] ( _FTYPE_v_ y_ ) -> _FTYPE_v_ { return fnc_( x_, y_ ); } );
-    return A113_OK;
+template< typename _pcsn_t_ = real_t >
+auto d1_f2( _pcsn_t_ x_, _pcsn_t_ y_, _pcsn_t_ r_, fnc_2d_t< _pcsn_t_ > fnc_ ) {
+    arr_t< 2, _pcsn_t_ > d;
+
+    const auto fx = [ &fnc_, &y_ ] ( _pcsn_t_ x_ ) -> _pcsn_t_ { return fnc_( x_, y_ ); };
+    const auto fy = [ &fnc_, &x_ ] ( _pcsn_t_ y_ ) -> _pcsn_t_ { return fnc_( x_, y_ ); };
+
+    d[ 0x0 ] = d1_f1< _pcsn_t_ >( x_, r_, fx );
+    d[ 0x1 ] = d1_f1< _pcsn_t_ >( y_, r_, fy );
+    return d;
+}
+
+template< typename _pcsn_t_ = real_t >
+auto d2_f2( _pcsn_t_ x_, _pcsn_t_ y_, _pcsn_t_ r_, fnc_2d_t< _pcsn_t_ > fnc_ ) {
+    arr_t< 2, _pcsn_t_ > d2;
+
+    const auto fx = [ &fnc_, &y_ ] ( _pcsn_t_ x_ ) -> _pcsn_t_ { return fnc_( x_, y_ ); };
+    const auto fy = [ &fnc_, &x_ ] ( _pcsn_t_ y_ ) -> _pcsn_t_ { return fnc_( x_, y_ ); };
+
+    d2[ 0x0 ] = d2_f1< _pcsn_t_ >( x_, r_, fx );
+    d2[ 0x1 ] = d2_f1< _pcsn_t_ >( y_, r_, fy );
+    return d2;
+}
+
+template< typename _pcsn_t_ = real_t >
+auto d2h_f2( _pcsn_t_ x_, _pcsn_t_ y_, _pcsn_t_ r_, fnc_2d_t< _pcsn_t_ > fnc_ ) {
+    arr_t< 4, _pcsn_t_ > d2h;
+
+    const auto d2 = d2_f2< _pcsn_t_ >( x_, y_, r_, fnc_ );
+    d2h[ 0x0 ] = d2[ 0x0 ];
+    d2h[ 0x3 ] = d2[ 0x1 ];
+
+    fnc_1d_t< _pcsn_t_ > fdxy = [ &fnc_, &x_, &r_ ]( _pcsn_t_ y_ ) -> _pcsn_t_ { return d1_f2( x_, y_, r_, fnc_ )[ 0x0 ]; };
+    fnc_1d_t< _pcsn_t_ > fdyx = [ &fnc_, &y_, &r_ ]( _pcsn_t_ x_ ) -> _pcsn_t_ { return d1_f2( x_, y_, r_, fnc_ )[ 0x1 ]; };
+
+    d2h[ 0x1 ] = d1_f1( y_, r_, fdxy );
+    d2h[ 0x2 ] = d1_f1( x_, r_, fdyx );
+
+    return d2h;
 }
 
 
-template< typename _FTYPE_v_ >
-vec2_t< _FTYPE_v_ > search_mf1_elimgr( _FTYPE_v_ a_, _FTYPE_v_ b_, _FTYPE_v_ eps_, int* n_, fnc_1d_t< _FTYPE_v_ > fnc_ ) {
+template< typename _pcsn_t_ = real_t >
+vec2_t< _pcsn_t_ > search_mf1_elimgr( _pcsn_t_ a_, _pcsn_t_ b_, _pcsn_t_ eps_, int* n_, fnc_1d_t< _pcsn_t_ > fnc_ ) {
     if( b_ < a_ ) std::swap( b_, a_ );
     auto d = b_ - a_;
 
@@ -221,12 +343,12 @@ vec2_t< _FTYPE_v_ > search_mf1_elimgr( _FTYPE_v_ a_, _FTYPE_v_ b_, _FTYPE_v_ eps
     return { .x = x, .y = fnc_( x ) };
 }
 
-template< typename _FTYPE_v_ >
-vec2_t< _FTYPE_v_ > search_mf1_elimfib( _FTYPE_v_ a_, _FTYPE_v_ b_, _FTYPE_v_ eps_, int* n_, fnc_1d_t< _FTYPE_v_ > fnc_ ) {
+template< typename _pcsn_t_ = real_t >
+vec2_t< _pcsn_t_ > search_mf1_elimfib( _pcsn_t_ a_, _pcsn_t_ b_, _pcsn_t_ eps_, int* n_, fnc_1d_t< _pcsn_t_ > fnc_ ) {
     if( b_ < a_ ) std::swap( b_, a_ );
 
-    auto f1 = _FTYPE_v_{3};
-    auto f2 = _FTYPE_v_{2}; 
+    auto f1 = _pcsn_t_{3};
+    auto f2 = _pcsn_t_{2}; 
 
     int n = 0;
     while( b_ - a_ >= eps_ ) { ++n;
@@ -253,18 +375,18 @@ vec2_t< _FTYPE_v_ > search_mf1_elimfib( _FTYPE_v_ a_, _FTYPE_v_ b_, _FTYPE_v_ ep
 /* === memory structures === */
 namespace a113::mdn_1 { using namespace _mdn;
 
-template< typename _FTYPE_v_ > using vec = std::vector< _FTYPE_v_ >;
+template< typename _pcsn_t_ = real_t > using vec = std::vector< _pcsn_t_ >;
 
-template< typename _FTYPE_v_ > struct vec_t {
+template< typename _pcsn_t_ = real_t > struct vec_t {
 _A113_PROTECTED:
-    _FTYPE_v_*   _cmps   = nullptr;
+    _pcsn_t_*   _cmps   = nullptr;
 
 public:
     union {
         struct {
-            _FTYPE_v_   x;
-            _FTYPE_v_   y;
-            _FTYPE_v_   z;
+            _pcsn_t_   x;
+            _pcsn_t_   y;
+            _pcsn_t_   z;
         };
         struct {
             int   _sz;
@@ -272,40 +394,39 @@ public:
     };
 
 public:
-    A113_inline _FTYPE_v_* cmps( void ) {
+    A113_inline _pcsn_t_* cmps( void ) {
         return _cmps ? _cmps : &x;
     }
 
 };
 
-
-template< typename _FTYPE_v_ > struct rvec {
+template< typename _pcsn_t_ = real_t > struct rvec {
 public: 
     rvec( void ) = default;
 
     rvec( int cap_ ) { this->bind( cap_ ); }
 
 _A113_PROTECTED:
-    std::unique_ptr< _FTYPE_v_[] >   _data   = nullptr;
+    std::unique_ptr< _pcsn_t_[] >   _data   = nullptr;
     int                              _head   = 0x0;
     int                              _sz     = 0;
     int                              _cap    = 0;
 
 public:
     status_t bind( int cap_ ) {
-        _data.reset( new _FTYPE_v_[ _cap = cap_ ] );
+        _data.reset( new _pcsn_t_[ _cap = cap_ ] );
         _head = 0; _sz = 0;
 
         return A113_OK;
     }
 
 public:
-    _FTYPE_v_* data( void ) { return _data.get(); }
+    _pcsn_t_* data( void ) { return _data.get(); }
     int head( void ) { return _head; }
     int size( void ) { return _sz; }
 
 public:
-    _FTYPE_v_& push_back( const _FTYPE_v_& v_ ) {
+    _pcsn_t_& push_back( const _pcsn_t_& v_ ) {
         int idx = 0x0; 
         if( _sz == _cap ) [[likely]] {
             idx = _head++; _head %= _cap;
@@ -318,57 +439,57 @@ public:
 };
 
 
-template< typename _FTYPE_v_ >
-vec< _FTYPE_v_ > linspace_n( int n_, _FTYPE_v_ low_, _FTYPE_v_ upp_ ) {
-    vec< _FTYPE_v_ > span; span.assign( n_, _FTYPE_v_{0} );
+template< typename _pcsn_t_ = real_t >
+vec< _pcsn_t_ > linspace_n( int n_, _pcsn_t_ low_, _pcsn_t_ upp_ ) {
+    vec< _pcsn_t_ > span; span.assign( n_, _pcsn_t_{0} );
     mdn_0::linspace_n( span.data(), n_, low_, upp_ );
     return span;
 }
 
-template< typename _FTYPE_v_ >
-vec< _FTYPE_v_ > linspace_s( _FTYPE_v_ s_, _FTYPE_v_ low_, _FTYPE_v_ upp_ ) {
-    int steps = ( int )(( upp_ - low_ ) / s_ );
-    vec< _FTYPE_v_ > span; span.assign( steps, _FTYPE_v_{0} );
+template< typename _pcsn_t_ = real_t >
+vec< _pcsn_t_ > linspace_s( _pcsn_t_ s_, _pcsn_t_ low_, _pcsn_t_ upp_ ) {
+    int steps = ( int )(std::abs( upp_ - low_ ) / s_ );
+    vec< _pcsn_t_ > span; span.assign( steps, _pcsn_t_{0} );
     mdn_0::linspace_n( span.data(), steps, low_, upp_ );
     return span;
 }
 
-template< typename _FTYPE_v_ >
-vec< std::complex< _FTYPE_v_ > > roots( const vec< _FTYPE_v_ >& co_ ) {
+template< typename _pcsn_t_ = real_t >
+vec< std::complex< _pcsn_t_ > > roots( const vec< _pcsn_t_ >& co_ ) {
     const int n = (int)co_.size() - 1;
-    _FTYPE_v_ rr[ n ], ri[ n ];
+    _pcsn_t_ rr[ n ], ri[ n ];
     
-    A113_ASSERT_OR( A113_OK == mdn_0::roots< _FTYPE_v_ >( co_.data(), n, rr, ri ) ) return {};
+    A113_ASSERT_OR( A113_OK == mdn_0::roots< _pcsn_t_ >( co_.data(), n, rr, ri ) ) return {};
 
-    vec< std::complex< _FTYPE_v_ > > res; res.reserve( n );
+    vec< std::complex< _pcsn_t_ > > res; res.reserve( n );
     for( int i = 0x0; i < n; ++i ) res.emplace_back( rr[ i ], ri[ i ] );
     return res;
 }
 
 
-template< typename _FTYPE_v_ > struct siso_t {
+template< typename _pcsn_t_ = real_t > struct siso_t {
 public:
-    virtual _FTYPE_v_ step( _FTYPE_v_ u_, _FTYPE_v_ t_ ) = 0;
+    virtual _pcsn_t_ step( _pcsn_t_ u_, _pcsn_t_ t_ ) = 0;
     virtual void reset( void ) = 0;
 };
 
-template< typename _FTYPE_v_ > struct tfc_t : public siso_t< _FTYPE_v_ > {
+template< typename _pcsn_t_ = real_t > struct tfc_t : public siso_t< _pcsn_t_ > {
 public:
     tfc_t( void ) = default;
 
-    tfc_t( vec< _FTYPE_v_ > num_, vec< _FTYPE_v_ > den_, mdn_0::DiscDiffMth_ diffm_ ) {
+    tfc_t( vec< _pcsn_t_ > num_, vec< _pcsn_t_ > den_, mdn_0::DiscDiffMth_ diffm_ ) {
         this->bind( std::move( num_ ), std::move( den_ ), diffm_ );
     }
 
 public:
-    vec< _FTYPE_v_ >      den     = {};
-    vec< _FTYPE_v_ >      num     = {};   
-    vec< _FTYPE_v_ >      dy_h    = {};
-    vec< _FTYPE_v_ >      du_h    = {};
+    vec< _pcsn_t_ >      den     = {};
+    vec< _pcsn_t_ >      num     = {};   
+    vec< _pcsn_t_ >      dy_h    = {};
+    vec< _pcsn_t_ >      du_h    = {};
     mdn_0::DiscDiffMth_   diffm   = mdn_0::DiscDiffMth_FwdEuler;
     
 public:
-    status_t bind( vec< _FTYPE_v_ > num_, vec< _FTYPE_v_ > den_, mdn_0::DiscDiffMth_ diffm_ ) {
+    status_t bind( vec< _pcsn_t_ > num_, vec< _pcsn_t_ > den_, mdn_0::DiscDiffMth_ diffm_ ) {
         A113_ASSERT_OR( not den_.empty() && not num_.empty() ) {
             BridgE->error( "tfc_t: den and num shall not be empty." );
             return A113_ERR_BADARG;
@@ -379,8 +500,8 @@ public:
 
         switch( diffm ) {
             case mdn_0::DiscDiffMth_FwdEuler: {
-                dy_h.assign( this->n() * 2, _FTYPE_v_{0} );
-                du_h.assign( this->m() * 2, _FTYPE_v_{0} );
+                dy_h.assign( this->n() * 2, _pcsn_t_{0} );
+                du_h.assign( this->m() * 2, _pcsn_t_{0} );
             break; }
 
             default: {
@@ -397,7 +518,7 @@ public:
     A113_inline int m( void ) const { return (int)num.size(); }
 
 public:
-    virtual _FTYPE_v_ step( _FTYPE_v_ u_, _FTYPE_v_ t_ ) override {
+    virtual _pcsn_t_ step( _pcsn_t_ u_, _pcsn_t_ t_ ) override {
         switch( diffm ) {
             case mdn_0::DiscDiffMth_FwdEuler: return mdn_0::tfc_step_fwdeul( 
                 den.data(), this->n(), num.data(), this->m(), dy_h.data(), du_h.data(), u_, t_
@@ -409,8 +530,8 @@ public:
     }
 
     virtual void reset( void ) override {
-        std::fill_n( dy_h.data(), dy_h.size(), _FTYPE_v_{0} );
-        std::fill_n( du_h.data(), du_h.size(), _FTYPE_v_{0} );
+        std::fill_n( dy_h.data(), dy_h.size(), _pcsn_t_{0} );
+        std::fill_n( du_h.data(), du_h.size(), _pcsn_t_{0} );
     }
 
 };
@@ -422,21 +543,21 @@ namespace a113::mdn_2 { using namespace _mdn;
 
 using mdn_1::vec;
 
-template< typename _FTYPE_v_ = double > struct srf_grid_t {
+template< typename _pcsn_t_ = real_t > struct srf_grid_t {
 public:
-    using apply_op_t = std::function< _FTYPE_v_( _FTYPE_v_* ) >;
+    using apply_op_t = std::function< _pcsn_t_( _pcsn_t_* ) >;
 
 public:
     srf_grid_t( void ) = default;
 
 public:
-    vec< vec< _FTYPE_v_ > >   _spans   = {};
-    vec< _FTYPE_v_ >          _field   = {};
-    _FTYPE_v_                 _min     = _FTYPE_v_{0};
-    _FTYPE_v_                 _max     = _FTYPE_v_{0};
+    vec< vec< _pcsn_t_ > >   _spans   = {};
+    vec< _pcsn_t_ >          _field   = {};
+    _pcsn_t_                 _min     = _pcsn_t_{0};
+    _pcsn_t_                 _max     = _pcsn_t_{0};
 
 public:
-    A113_inline _FTYPE_v_* raw( void ) { return _field.data(); }
+    A113_inline _pcsn_t_* raw( void ) { return _field.data(); }
 
     A113_inline int n_of( int d_ ) const { return (int)_spans[d_].size(); }
     A113_inline int count( void ) const { return (int)_field.size(); }
@@ -446,12 +567,12 @@ public:
     A113_inline void _align_field( void ) {
         int z_field_sz = 1;
         for( auto& span : _spans ) z_field_sz *= span.size();
-        _field.assign( z_field_sz, _FTYPE_v_{0} );
+        _field.assign( z_field_sz, _pcsn_t_{0} );
     }
 
 public:
     srf_grid_t& span_n( 
-        const vec< std::tuple< int, _FTYPE_v_, _FTYPE_v_ > >& spans_
+        const vec< std::tuple< int, _pcsn_t_, _pcsn_t_ > >& spans_
     ) {
         _spans.assign( spans_.size(), {} );
         for( int d = 0x0; d < spans_.size(); ++d ) {
@@ -464,7 +585,7 @@ public:
     }
 
     srf_grid_t& span_s( 
-        const vec< std::tuple< _FTYPE_v_, _FTYPE_v_, _FTYPE_v_ > >& spans_
+        const vec< std::tuple< _pcsn_t_, _pcsn_t_, _pcsn_t_ > >& spans_
     ) {
         _spans.assign( spans_.size(), {} );
         for( int d = 0x0; d < spans_.size(); ++d ) {
@@ -477,7 +598,7 @@ public:
     }
 
 public:
-    _FTYPE_v_& field_at( int* x_ ) {
+    _pcsn_t_& field_at( int* x_ ) {
         int offset = 0x0;
 
         for( int d = this->dims() - 1; d >= 0x1; --d ) {
@@ -486,22 +607,22 @@ public:
         return _field[ offset ];
     }
 
-    A113_inline _FTYPE_v_& operator () ( int* x_ ) {
+    A113_inline _pcsn_t_& operator () ( int* x_ ) {
         return this->field_at( x_ );
     }
 
-    A113_inline _FTYPE_v_ min( void ) const { return _min; }
-    A113_inline _FTYPE_v_ max( void ) const { return _max; }
+    A113_inline _pcsn_t_ min( void ) const { return _min; }
+    A113_inline _pcsn_t_ max( void ) const { return _max; }
 
 public:
     srf_grid_t& apply( apply_op_t op_ ) {
         const int count       = this->count();
         const int dims        = this->dims();
-        _FTYPE_v_   x[ dims ]   = { _FTYPE_v_{0} };
+        _pcsn_t_   x[ dims ]   = { _pcsn_t_{0} };
         int       ds[ count ] = { 0x0 };
         
-        _min = std::numeric_limits< _FTYPE_v_ >::max();
-        _max = std::numeric_limits< _FTYPE_v_ >::min();
+        _min = std::numeric_limits< _pcsn_t_ >::max();
+        _max = std::numeric_limits< _pcsn_t_ >::min();
 
         for( int i = 0x0; i < count; ++i ) {
             for( int d = 0x0; d < dims; ++d ) x[d] = _spans[d][ds[d]];
@@ -518,17 +639,17 @@ public:
     } 
 
 public:
-    _FTYPE_v_ MSE_with( const srf_grid_t& other_ ) const {
+    _pcsn_t_ MSE_with( const srf_grid_t& other_ ) const {
         const int N = this->count();
-        return _FTYPE_v_{1.0}/N * mdn_0::roam_acc_2( _field.data(), other_._field.data(), N, _FTYPE_v_{0}, [] ( _FTYPE_v_ rhs, _FTYPE_v_ lhs ) {
+        return _pcsn_t_{1.0}/N * mdn_0::roam_acc_2( _field.data(), other_._field.data(), N, _pcsn_t_{0}, [] ( _pcsn_t_ rhs, _pcsn_t_ lhs ) {
             return std::pow( rhs - lhs, 2 );
         } );
     }
 
 public:
     std::pair< vec< float >, vec< unsigned int > > gen_VBO_and_EBO( int d0_ = 0x0, int d1_ = 0x1 ) {
-        const vec< _FTYPE_v_ >& x_span = _spans[ d0_ ];
-        const vec< _FTYPE_v_ >& y_span = _spans[ d1_ ];
+        const vec< _pcsn_t_ >& x_span = _spans[ d0_ ];
+        const vec< _pcsn_t_ >& y_span = _spans[ d1_ ];
         const int             xn     = x_span.size();
         const int             yn     = y_span.size();
 

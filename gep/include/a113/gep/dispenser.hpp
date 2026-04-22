@@ -69,7 +69,7 @@ _A113_PROTECTED:
                     new ( &lock.mtx )   std::shared_mutex{};
                     break;
                 case DispenserMode_Drop:
-                    new ( &drop.block ) HVec< _T_ >{ HVec< _T_ >::make() };
+                    //new ( &drop.block ) HVec< _T_ >{ HVec< _T_ >::make() };
                     break;
                 case DispenserMode_Swap: [[fallthrough]];
                 case DispenserMode_ReverseSwap:
@@ -110,8 +110,8 @@ public:
 public:
     A113_inline DispenserMode_ mode( void ) const { return _mode; }
 
-    A113_inline _dispenser_acquire< _T_, false > watch( void ); 
-    A113_inline _dispenser_acquire< _T_, true > control( void ); 
+    A113_inline _dispenser_acquire< _T_, false > watch( void* arg_ = nullptr ); 
+    A113_inline _dispenser_acquire< _T_, true > control( void* arg_ = nullptr ); 
 
 public:
     [[nodiscard]] A113_inline HVec< _T_ > hold( void ) {
@@ -129,7 +129,7 @@ public:
 
 template< typename _T_, bool _IS_CONTROL_ > struct _dispenser_acquire {
 public:
-    [[gnu::hot]] _dispenser_acquire( Dispenser< _T_ >& disp_ ) : _disp{ &disp_ }, _M_{ disp_._mode }  {
+    [[gnu::hot]] _dispenser_acquire( Dispenser< _T_ >& disp_, void* arg_ ) : _disp{ &disp_ }, _M_{ disp_._mode }  {
         switch( _disp->_mode ) {
             case DispenserMode_Lock: {
                 if constexpr( _IS_CONTROL_ ) {
@@ -322,14 +322,15 @@ public:
     A113_inline operator bool ( void ) {
         switch( _disp->_mode ) {
             case DispenserMode_Trylock: return _M_.trylock.acq;
+            case DispenserMode_Drop: return _M_.drop.block != nullptr;
         }
         return true;
     }
 
 };
 
-template< typename _T_ > _dispenser_acquire< _T_, false > Dispenser< _T_ >::watch( void ) { return _dispenser_acquire< _T_, false >{ *this }; }
-template< typename _T_ > _dispenser_acquire< _T_, true > Dispenser< _T_ >::control( void ) { return _dispenser_acquire< _T_, true >{ *this }; }
+template< typename _T_ > _dispenser_acquire< _T_, false > Dispenser< _T_ >::watch( void* arg_ ) { return _dispenser_acquire< _T_, false >{ *this, arg_ }; }
+template< typename _T_ > _dispenser_acquire< _T_, true > Dispenser< _T_ >::control( void* arg_ ) { return _dispenser_acquire< _T_, true >{ *this, arg_ }; }
 
 template< typename _T_ > using dispenser_watch   = _dispenser_acquire< _T_, false >;
 template< typename _T_ > using dispenser_control = _dispenser_acquire< _T_, true >;

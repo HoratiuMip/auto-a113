@@ -11,10 +11,17 @@
 
 namespace a113::text {
 
-template< typename _precision_t_ >
+template< typename _pcsn_t_ >
 class Fastexp {
 public:
-    typedef   std::function< status_t( std::string_view, _precision_t_* ) >   defr_cb_t;
+    typedef   std::function< status_t( std::string_view, _pcsn_t_* ) >   defr_cb_t;
+
+public:
+    Fastexp( void ) = default;
+
+    Fastexp( std::string_view exp_ ) {
+        this->parse( exp_ );
+    }
 
 _A113_PROTECTED:
     struct _op_t {
@@ -219,13 +226,13 @@ public:
         return A113_OK;
     }
 
-    status_t resolve( _precision_t_* result_ ) {
-        std::deque< _precision_t_ > resolver;
+    status_t resolve( _pcsn_t_* result_ ) {
+        std::deque< _pcsn_t_ > resolver;
 
         for( const auto& sym : _rpn ) {
             switch( sym.typ ) {
                 case _sym_t::Typ_Num: {
-                    _precision_t_ cvt;
+                    _pcsn_t_ cvt;
                     const char*   begin = sym.val.data();
                     const char*   end   = sym.val.data() + sym.val.length();
 
@@ -236,21 +243,21 @@ public:
                 break; }
 
                 case _sym_t::Typ_Defr: {
-                    _precision_t_ res;
+                    _pcsn_t_ res;
                     A113_ASSERT_OR( A113_OK == this->_defr( sym.val, &res ) ) return A113_ERR_USERCALL;
 
                     resolver.push_front( res );
                 break; }
                 
                 case _sym_t::Typ_Op: {
-                    _precision_t_ regs[ sym.op.arg_count ];
+                    _pcsn_t_ regs[ sym.op.arg_count ];
 
                     for( uint8_t idx = 0x0; idx < sym.op.arg_count; ++idx ) {
                         A113_ASSERT_OR( not resolver.empty() ) return A113_ERR_BADARG;
                         regs[ idx ] = resolver.front(); resolver.pop_front();
                     }
 
-                    _precision_t_ collapsed = _precision_t_{ 0x0 };
+                    _pcsn_t_ collapsed = _pcsn_t_{ 0x0 };
                     switch( sym.op.arg_count ) {
                         case 1: {
                             switch( hash( sym.val ) ) {

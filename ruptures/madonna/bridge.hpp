@@ -3,8 +3,10 @@
 #include <a113/gep/fastcli.hpp>
 #include <a113/gep/fastexp.hpp>
 #include <a113/gep/dispenser.hpp>
-#include <a113/osp/madonna.hpp>
 using namespace a113;
+
+#define A113_MDN_REAL_T double
+#include <a113/osp/madonna.hpp>
 
 #include <a113/clkwrk/immersive.hpp>
 
@@ -22,7 +24,15 @@ using namespace a113;
 #define MDN_IN_OUT
 #define MDN_IN_OUT_OPT
 
+using namespace std;
+
 namespace mdn {
+
+/// ====== PROXY ====== ///
+#define MDN_PROXY_CLI_BASIC_INSTALL { \
+        .text = "install", \
+        .fnc = [ this ] ( auto& stencil_ ) -> status_t { return BridgE.install( a113::HVec< Dock >::make() ); } \
+    }
 
 class proxy_t {
 public:
@@ -30,24 +40,25 @@ public:
 
 public:
     proxy_t( 
-        MDN_IN   const std::string&                      name_, 
+        MDN_IN   const string&                     name_, 
         MDN_IN   const text::Fastcli::config_t&    cli_config_, 
         MDN_IN   const text::Fastcli::cmd_map_t&   cli_cmd_map_
     ) : _name{ name_ }, _cli{ cli_config_, cli_cmd_map_ } {}
 
 protected:
-    std::string           _name   = {};
+    string          _name   = {};
     text::Fastcli   _cli    = {};
 
 public:
-    status_t pass( const std::string& text_, std::string* out_ ) {
+    status_t pass( const string& text_, string* out_ ) {
         return _cli.execute( text_, out_ );
     }
 
 };
 
+/// ====== DOCK ====== ///
 #define MDN_DOCK_NAME_FNC \
-    virtual std::string_view name( void )
+virtual string_view name( void )
 
 #define MDN_DOCK_GUIX_FNC \
     virtual status_t guix_frame( \
@@ -59,7 +70,7 @@ public:
     friend class _bridge_t;
 
 protected:
-    std::string   _id   = {};
+    string   _id   = {};
 
 protected:
     MDN_DOCK_NAME_FNC { return "unknown"; }
@@ -74,15 +85,17 @@ protected:
         } \
     } _mdn_installer_##t##_; 
 
+
 class var_t {
 public:
     enum What_ { Null, Scalar };
 
 public:
-    What_      what   = Null;
-    std::any   val    = {};
+    What_   what   = Null;
+    any     val    = {};
 };
 
+/// ====== BRIDGE ====== ///
 class _bridge_t : public bridge_t {
 public:
     _bridge_t( void ) : bridge_t{ MDN_VERSION_STR } {
@@ -91,25 +104,22 @@ public:
 
 // ======================= Fields =======================
 public:
-    clkwrk::Immersive                                     imm           = {};
+    clkwrk::Immersive                                  imm           = {};
     
-    Dispenser< std::map< std::string, HVec< var_t > > >   var_reg       = { DispenserMode_Lock };
+    Dispenser< map< string, HVec< var_t > > >          var_reg       = { DispenserMode_Lock };
 
 protected:
-    std::atomic< status_t >                               _status       = { A113_ERR_TERMINATED };
+    atomic< status_t >                                 _status       = { A113_ERR_TERMINATED };
 
-    std::map< std::string_view, HVec< proxy_t > >         _proxys       = {};
-    std::recursive_mutex                                  _proxys_mtx   = {};
+    Dispenser< map< string_view, HVec< proxy_t > > >   _proxys       = { DispenserMode_Lock };
+    Dispenser< map< string_view, HVec< dock_t > > >    _docks        = { DispenserMode_Lock };
 
-    std::map< std::string_view, HVec< dock_t > >          _docks        = {};
-    std::recursive_mutex                                  _docks_mtx    = {};
-
-    std::thread                                           _th_guix      = {};
+    thread                                             _th_guix      = {};
 
 public:
-    A113_inline auto status( void ) { return _status.load( std::memory_order_relaxed ); }
+    A113_inline auto status( void ) { return _status.load( memory_order_relaxed ); }
 
-    A113_inline void wait_stop( void ) { _status.wait( A113_OK, std::memory_order_seq_cst ); this->stop(); }
+    A113_inline void wait_stop( void ) { _status.wait( A113_OK, memory_order_seq_cst ); this->stop(); }
 
 public:
     status_t install(
@@ -120,33 +130,34 @@ public:
             return A113_ERR_BADARG;
         }
 
-        std::string_view sv = proxy_->_name;
+        string_view sv = proxy_->_name;
         MDN_ASSERT_OR( not sv.empty() ) {
             logger->error( "bridge: install proxy: empty name." ); 
             return A113_ERR_FLOW;
         }
 
-        std::unique_lock lck{ _proxys_mtx };
-        auto& proxy = _proxys[ sv ];
+        auto proxys = _proxys.control();
+
+        auto& proxy = ( *proxys )[ sv ];
         MDN_ASSERT_OR( not proxy ) {
-            lck.unlock();
+            proxys.release();
             logger->error( "bridge: register proxy: \"{}\" already exists.", sv );
             return A113_ERR_WOULD_OVRWR;
         }
 
-        proxy = std::move( proxy_ );
-        lck.unlock();
+        proxy = move( proxy_ );
+        proxys.release();
 
         logger->info( "bridge: installed proxy \"{}\".", sv );
         return A113_OK;
     }
 
     void uninstall_proxy(
-        MDN_IN   const std::string&   proxy_name_  
+        MDN_IN   const string&   proxy_name_  
     ) {
-        std::unique_lock lck{ _proxys_mtx };
-        _proxys.erase( proxy_name_ );
-        lck.unlock();
+        auto proxys = _proxys.control();
+        proxys->erase( proxy_name_ );
+        proxys.release();
 
         logger->info( "bridge: uninstalled proxy \"{}\".", proxy_name_ );
     }
@@ -159,35 +170,35 @@ public:
             return A113_ERR_BADARG;
         }
 
-        dock_->_id = std::format( "{}-{:x}", dock_->name(), time( nullptr ) );
+        dock_->_id = format( "{}-{:x}", dock_->name(), time( nullptr ) );
 
-        std::string_view sv = dock_->_id;
+        string_view sv = dock_->_id;
         MDN_ASSERT_OR( not sv.empty() ) {
             logger->error( "bridge: install dock: empty id." ); 
             return A113_ERR_FLOW;
         }
 
-        std::unique_lock lck{ _docks_mtx };
-        auto& dock = _docks[ sv ];
+        auto docks = _docks.control();
+        auto& dock = ( *docks )[ sv ];
         MDN_ASSERT_OR( not dock ) {
-            lck.unlock();
+            docks.release();
             logger->error( "bridge: install dock: \"{}\" already exists.", sv ); 
             return A113_ERR_WOULD_OVRWR;
         }
 
-        dock = std::move( dock_ );
-        lck.unlock();
+        dock = move( dock_ );
+        docks.release();
 
         logger->info( "bridge: installed dock \"{}\".", sv );
         return A113_OK;
     }
 
     void uninstall_dock( 
-        MDN_IN   const std::string&   dock_id_
+        MDN_IN   const string&   dock_id_
     ) {
-        std::unique_lock lck{ _docks_mtx };
-        _docks.erase( dock_id_ );
-        lck.unlock();
+        auto docks = _docks.control();
+        docks->erase( dock_id_ );
+        docks.release();
 
         logger->info( "bridge: uninstalled dock \"{}\".", dock_id_ );
     }
@@ -199,9 +210,9 @@ public:
             return A113_ERR_LOGIC;
         }
 
-        _status.store( A113_OK, std::memory_order_release );
+        _status.store( A113_OK, memory_order_release );
 
-        _th_guix = std::thread( &clkwrk::Immersive::main, &imm, 0, nullptr, clkwrk::Immersive::config_t{
+        _th_guix = thread( &clkwrk::Immersive::main, &imm, 0, nullptr, clkwrk::Immersive::config_t{
             .ctx        = nullptr,
             .title      = MDN_VERSION_STR,
             .width      = 680,
@@ -227,7 +238,7 @@ public:
     }
 
     void signal_stop( void ) {
-        _status.store( A113_ERR_TERMINATED, std::memory_order_release );
+        _status.store( A113_ERR_TERMINATED, memory_order_release );
         _status.notify_all();
         logger->info( "bridge: signaling stop..." );
     }
@@ -240,33 +251,39 @@ public:
 
 public:
     status_t proxy_pass( 
-        MDN_IN    std::string_view     proxy_name_, 
-        MDN_IN    const std::string&   command_, 
-        MDN_OUT   std::string*         out_
+        MDN_IN    string_view     proxy_name_, 
+        MDN_IN    const string&   command_, 
+        MDN_OUT   string*         out_
     ) {
-        std::unique_lock lck{ _proxys_mtx };
-        auto itr = _proxys.find( proxy_name_ );
+        auto proxys = _proxys.control();
 
-        MDN_ASSERT_OR( itr != _proxys.end() ) {
-            lck.unlock();
-            *out_ += std::format( "No such proxy: \"{}\".", proxy_name_ );
+        auto itr = proxys->find( proxy_name_ );
+
+        MDN_ASSERT_OR( itr != proxys->end() ) {
+            proxys.release();
+            *out_ += format( "proxy pass: no such proxy: \"{}\".", proxy_name_ );
             return A113_ERR_BADARG;
         }
 
-        auto proxy = itr->second; lck.unlock();
+        auto proxy = itr->second;
+        proxys.release();
 
         return proxy->pass( command_, out_ );
     }
 
 public:
     MDN_DOCK_GUIX_FNC {
-        A113_ASSERT_OR( _status.load( std::memory_order_relaxed ) == A113_OK ) return A113_ERR_TERMINATED;
+        A113_ASSERT_OR( _status.load( memory_order_relaxed ) == A113_OK ) return A113_ERR_TERMINATED;
 
         imm.assets_idle_splash_render( args_ );
 
-        std::unique_lock lck{ _docks_mtx };
-        std::erase_if( _docks, [ &args_ ] ( auto& itr_ ) -> bool {
-            return A113_OK != itr_.second->guix_frame( args_ );
+        auto docks = _docks.control();
+        int crt = 0;
+        erase_if( *docks, [ &args_, &crt ] ( auto& itr_ ) -> bool {
+            ImGui::PushID( crt++ );
+            const bool erase = A113_OK != itr_.second->guix_frame( args_ );
+            ImGui::PopID();
+            return erase;
         } );
 
         return A113_OK;
