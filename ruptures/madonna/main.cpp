@@ -10,7 +10,7 @@ int main( int argc, char* argv[] ) {
         mdn::BridgE.signal_stop();
     } );
 
-    mdn::BridgE.start();
+    mdn::BridgE.start( argc, argv );
     mdn::BridgE.wait_stop();
 
     return 0x0;

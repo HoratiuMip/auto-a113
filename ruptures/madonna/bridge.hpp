@@ -58,7 +58,12 @@ public:
 
 /// ====== DOCK ====== ///
 #define MDN_DOCK_NAME_FNC \
-virtual string_view name( void )
+    virtual string_view name( void )
+
+#define MDN_DOCK_WAKE_FNC \
+    virtual status_t wake( \
+        MDN_IN   const wake_args_t&    args_ \
+    )
 
 #define MDN_DOCK_GUIX_FNC \
     virtual status_t guix_frame( \
@@ -69,11 +74,18 @@ class dock_t {
 public:
     friend class _bridge_t;
 
+public:
+    struct wake_args_t {
+        int      argc;
+        char**   argv;
+    };
+
 protected:
     string   _id   = {};
 
 protected:
     MDN_DOCK_NAME_FNC { return "unknown"; }
+    MDN_DOCK_WAKE_FNC { return A113_OK; }
     MDN_DOCK_GUIX_FNC { return A113_OK; }
 
 };
@@ -204,7 +216,7 @@ public:
     }
 
 public:
-    status_t start( void ) {
+    status_t start( int argc_, char* argv_[] ) {
         MDN_ASSERT_OR( not _th_guix.joinable() && this->status() != A113_OK ) {
             logger->error( "bridge: start: already running." );
             return A113_ERR_LOGIC;
@@ -232,6 +244,15 @@ public:
                 return A113_OK;
             }
         } );
+
+        auto docks = _docks.watch();
+        for( auto& [ id, dock ] : *docks ) {
+            dock->wake( {
+                .argc = argc_,
+                .argv = argv_
+            } );
+        }
+        docks.release();
 
         logger->info( "bridge: started." );
         return A113_OK;

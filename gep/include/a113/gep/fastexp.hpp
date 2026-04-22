@@ -11,10 +11,10 @@
 
 namespace a113::text {
 
-template< typename _pcsn_t_ >
+template< typename _prec_t_ >
 class Fastexp {
 public:
-    typedef   std::function< status_t( std::string_view, _pcsn_t_* ) >   defr_cb_t;
+    typedef   std::function< status_t( std::string_view, _prec_t_* ) >   defr_cb_t;
 
 public:
     Fastexp( void ) = default;
@@ -24,9 +24,9 @@ public:
     }
 
 _A113_PROTECTED:
-    struct _op_t {
-        uint8_t   precedence   = 0x0;
-        uint8_t   arg_count    = 0;
+    struct _op_meta_t {
+        uint8_t   prio   = 0x0;
+        uint8_t   argc   = 0;
     };
 
     struct _sym_t {
@@ -36,7 +36,15 @@ _A113_PROTECTED:
 
         std::string   val   = {};
         Typ_          typ   = Typ_Unknwn;
-        _op_t         op    = {};
+        union {
+            struct {
+                _prec_t_   precvt;
+            } num;
+            struct { 
+                _op_meta_t   meta;
+                uint32_t     prehash; 
+            } op;
+        };
     };
 
 _A113_PROTECTED:
@@ -48,9 +56,9 @@ _A113_PROTECTED:
     };
 
 _A113_PROTECTED:
-    std::deque< _sym_t >                         _rpn      = {};
-    defr_cb_t                                    _defr     = {};
-    std::unordered_map< unsigned char, _op_t >   _op_map   = {
+    std::deque< _sym_t >                              _rpn       = {};
+    defr_cb_t                                         _defr      = {};
+    std::unordered_map< unsigned char, _op_meta_t >   _opm_map   = {
         { '^', { 0x0C, 2 } },
         { '/', { 0x0B, 2 } },
         { '*', { 0x0B, 2 } },
@@ -98,17 +106,18 @@ _A113_PROTECTED:
     status_t _stack_rpn( _parse_ctx_t* ctx_ ) {
         std::deque< _sym_t >   holding    = {};
         
+        /// === utility === ///
         auto push_holding = [ &holding, ctx_ ] ( _sym_t&& sym_ ) -> void {
             holding.emplace_front( std::move( sym_ ) );
         };
         auto push_rpn = [ ctx_ ] ( _sym_t&& sym_ ) -> void {
             ctx_->rpn->emplace_back( std::move( sym_ ) );
         };
-        auto drain_precedence = [ &holding, &push_rpn] ( const unsigned char pr_ ) -> void {
+        auto drain_prio = [ &holding, &push_rpn] ( const unsigned char pr_ ) -> void {
             while( not holding.empty() && holding.front().typ == _sym_t::Typ_Op ) {
                 auto& top = holding.front();
                 
-                if( top.op.precedence >= pr_ ) {
+                if( top.op.meta.prio >= pr_ ) {
                     push_rpn( std::move( top ) ); holding.pop_front();
                 } else {
                     break;
@@ -119,8 +128,10 @@ _A113_PROTECTED:
         for( int idx = 0x0; idx < ctx_->exp.length(); ++idx ) { 
             const char c = ctx_->exp[ idx ];
 
+            /// === trim === ///
             if( _is_white( c ) ) continue;
 
+            /// === numeric === ///
             if( this->_is_digit( c ) ) {
                 bool dot = false;
 
@@ -131,13 +142,24 @@ _A113_PROTECTED:
                 } );
                 const size_t diff = end - begin;
 
-                push_rpn( { .val = { begin, diff }, .typ = _sym_t::Typ_Num } );
+                _prec_t_ precvt = 0.0;
+                auto [ ptr, ec ] = std::from_chars( begin, end, precvt );
+                if( ptr != end || ec != std::errc{ 0x0 } ) return A113_ERR_BADARG;
+
+                push_rpn( { 
+                    .val = { begin, diff }, 
+                    .typ = _sym_t::Typ_Num, 
+                    .num = {
+                        .precvt = precvt 
+                    }
+                } );
                 ctx_->prev_typ = _sym_t::Typ_Num;
 
                 idx += diff - 1;
                 goto l_type_asserted;
             } 
 
+            /// === text === ///
             if( this->_is_alpha( c ) ) {
                 const char* begin = ctx_->exp.data() + idx;
                 const char* end   = std::find_if( begin, ctx_->exp.data() + ctx_->exp.length(), [ this ] ( const char c_ ) -> bool {
@@ -148,12 +170,20 @@ _A113_PROTECTED:
                 std::string str{ begin, diff };
 
                 if( *end == '(' ) {
-                    _op_t next_op = {
-                        .precedence = 0xFE,
-                        .arg_count  = 1
+                    _op_meta_t next_opm = {
+                        .prio = 0xFE,
+                        .argc  = 1
                     };
-                    drain_precedence( next_op.precedence );
-                    push_holding( { .val = std::move( str ), .typ = _sym_t::Typ_Op, .op = std::move( next_op ) } );
+                    drain_prio( next_opm.prio );
+                    const auto prehash = text::hash( str );
+                    push_holding( { 
+                        .val = std::move( str ), 
+                        .typ = _sym_t::Typ_Op, 
+                        .op  = {
+                            .meta    = std::move( next_opm ),
+                            .prehash = prehash
+                        } 
+                    } );
                     ctx_->prev_typ = _sym_t::Typ_Op;
                 } else {
                     push_rpn( { .val = std::move( str ), .typ = _sym_t::Typ_Defr } );
@@ -163,7 +193,8 @@ _A113_PROTECTED:
                 idx += diff - 1;
                 goto l_type_asserted;
             }
-
+            
+            /// === paranthesis === ///
             if( c == '(' ) {
                 push_holding( { .val = { '(' }, .typ = _sym_t::Typ_Paro } );
                 ++ctx_->par;
@@ -185,16 +216,24 @@ _A113_PROTECTED:
                 goto l_type_asserted;
             }
 
-            if( auto itr_next_op = _op_map.find( c ); itr_next_op != _op_map.end() ) {
-                _op_t next_op = itr_next_op->second;
+            /// === basic operator === ///
+            if( auto itr_next_opm = _opm_map.find( c ); itr_next_opm != _opm_map.end() ) {
+                _op_meta_t next_opm = itr_next_opm->second;
 
                 if( _is_cvt_to_unary( c, ctx_ ) ) {
-                    next_op.precedence = 0xFF;
-                    next_op.arg_count  = 1;
+                    next_opm.prio = 0xFF;
+                    next_opm.argc  = 1;
                 }
 
-                drain_precedence( next_op.precedence );
-                push_holding( { .val = { c }, .typ = _sym_t::Typ_Op, .op = std::move( next_op ) } );
+                drain_prio( next_opm.prio );
+                push_holding( { 
+                    .val = { c }, 
+                    .typ = _sym_t::Typ_Op, 
+                    .op  = {
+                        .meta    = std::move( next_opm ),
+                        .prehash = text::hash( { c } )
+                    }
+                } );
                 ctx_->prev_typ = _sym_t::Typ_Op;
                 goto l_type_asserted;
             }
@@ -207,7 +246,7 @@ _A113_PROTECTED:
 
         A113_ASSERT_OR( ctx_->par == 0 ) return A113_ERR_BADARG;
 
-        if( not holding.empty() ) ctx_->rpn->insert_range( ctx_->rpn->end(), std::move( holding ) ); 
+        if( not holding.empty() ) ctx_->rpn->insert_range( ctx_->rpn->end(), std::move( holding ) );
         return A113_OK;
     }
 
@@ -226,64 +265,55 @@ public:
         return A113_OK;
     }
 
-    status_t resolve( _pcsn_t_* result_ ) {
-        std::deque< _pcsn_t_ > resolver;
+    status_t resolve( _prec_t_* result_ ) {
+        _prec_t_ rslvstk[ _rpn.size() ];
+        int      rslvtop   = -0x1;
 
         for( const auto& sym : _rpn ) {
             switch( sym.typ ) {
                 case _sym_t::Typ_Num: {
-                    _pcsn_t_ cvt;
-                    const char*   begin = sym.val.data();
-                    const char*   end   = sym.val.data() + sym.val.length();
-
-                    auto [ ptr, ec ] = std::from_chars( begin, end, cvt );
-                    if( ptr != end || ec != std::errc{ 0x0 } ) return A113_ERR_BADARG;
-
-                    resolver.push_front( cvt );
+                    rslvstk[ ++rslvtop ] = sym.num.precvt;
                 break; }
 
                 case _sym_t::Typ_Defr: {
-                    _pcsn_t_ res;
+                    _prec_t_ res;
                     A113_ASSERT_OR( A113_OK == this->_defr( sym.val, &res ) ) return A113_ERR_USERCALL;
 
-                    resolver.push_front( res );
+                    rslvstk[ ++rslvtop ] = res;
                 break; }
                 
                 case _sym_t::Typ_Op: {
-                    _pcsn_t_ regs[ sym.op.arg_count ];
+                    _prec_t_* regs = rslvstk + rslvtop;
+                    _prec_t_  clps = _prec_t_{ 0x0 };
 
-                    for( uint8_t idx = 0x0; idx < sym.op.arg_count; ++idx ) {
-                        A113_ASSERT_OR( not resolver.empty() ) return A113_ERR_BADARG;
-                        regs[ idx ] = resolver.front(); resolver.pop_front();
-                    }
+                    rslvtop -= sym.op.meta.argc;
 
-                    _pcsn_t_ collapsed = _pcsn_t_{ 0x0 };
-                    switch( sym.op.arg_count ) {
+                    switch( sym.op.meta.argc ) {
                         case 1: {
-                            switch( hash( sym.val ) ) {
-                                case hash( "+" ): collapsed = regs[ 0x0 ]; break;
-                                case hash( "-" ): collapsed = -regs[ 0x0 ]; break;
-                                case hash( "sin" ): collapsed = std::sin( regs[ 0x0 ] ); break;
-                                case hash( "cos" ): collapsed = std::cos( regs[ 0x0 ] ); break;
-                                case hash( "tan" ): collapsed = std::tan( regs[ 0x0 ] ); break;
+                            switch( sym.op.prehash ) {
+                                case hash( "+" ):   clps = regs[0];             break;
+                                case hash( "-" ):   clps = -regs[0];            break;
+                                case hash( "sin" ): clps = std::sin( regs[0] ); break;
+                                case hash( "cos" ): clps = std::cos( regs[0] ); break;
+                                case hash( "tan" ): clps = std::tan( regs[0] ); break;
                             }
                         break; }
 
                         case 2: {
-                            switch( hash( sym.val ) ) {
-                            case hash( "^" ): collapsed = std::pow( regs[ 0x1 ], regs[ 0x0 ] ); break;
-                            case hash( "/" ): collapsed = regs[ 0x1 ] / regs[ 0x0 ]; break;
-                            case hash( "*" ): collapsed = regs[ 0x1 ] * regs[ 0x0 ]; break;
-                            case hash( "+" ): collapsed = regs[ 0x1 ] + regs[ 0x0 ]; break;
-                            case hash( "-" ): collapsed = regs[ 0x1 ] - regs[ 0x0 ]; break;
+                            switch( sym.op.prehash ) {
+                            case hash( "^" ): clps = std::pow( regs[-1], regs[0] ); break;
+                            case hash( "/" ): clps = regs[-1] / regs[0];            break;
+                            case hash( "*" ): clps = regs[-1] * regs[0];            break;
+                            case hash( "+" ): clps = regs[-1] + regs[0];            break;
+                            case hash( "-" ): clps = regs[-1] - regs[0];            break;
                         }
                         break; }
                     }
-                    resolver.push_front( collapsed );
+                    rslvstk[ ++rslvtop ] = clps;
                 break; }
             }
         }
-        *result_ = resolver.front();
+        *result_ = rslvstk[ rslvtop ];
         return A113_OK;
     }
 

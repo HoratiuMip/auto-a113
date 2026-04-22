@@ -163,6 +163,16 @@ public:
 public:
     MDN_DOCK_NAME_FNC override { return "cli"; }
 
+    MDN_DOCK_WAKE_FNC override {
+        for( int idx = 0x1; idx < args_.argc; ++idx )
+            std::thread( [ this, cmd = args_.argv[ idx ] ] {
+                std::string out;
+                _cli.execute( cmd, &out );
+            } ).detach();
+        
+        return A113_OK;
+    }
+
     MDN_DOCK_GUIX_FNC override {
         const ImGuiWindowFlags_ window_flags = ImGuiWindowFlags_None;
 

@@ -110,8 +110,8 @@ public:
 public:
     A113_inline DispenserMode_ mode( void ) const { return _mode; }
 
-    A113_inline _dispenser_acquire< _T_, false > watch( void* arg_ = nullptr ); 
-    A113_inline _dispenser_acquire< _T_, true > control( void* arg_ = nullptr ); 
+    template< typename ..._VARGS_ > A113_inline _dispenser_acquire< _T_, false > watch( _VARGS_&&... args_ ); 
+    template< typename ..._VARGS_ > A113_inline _dispenser_acquire< _T_, true > control( _VARGS_&&... args_ ); 
 
 public:
     [[nodiscard]] A113_inline HVec< _T_ > hold( void ) {
@@ -125,11 +125,26 @@ public:
         return nullptr;
     }
 
+    A113_inline _T_* get( void ) {
+        switch( _mode ) {
+            case DispenserMode_Lock: [[fallthrough]];
+            case DispenserMode_Trylock: return _M_.lock.block.get();
+            case DispenserMode_Drop: return _M_.drop.block.get();
+            case DispenserMode_Swap: [[fallthrough]];
+            case DispenserMode_ReverseSwap: return _M_.swap.blocks[ _M_.swap.ctl_idx.load( std::memory_order_relaxed ) ].get();
+        }
+        return nullptr;
+    }
+
+    A113_inline _T_* operator -> ( void ) { return this->get(); }
+    A113_inline _T_& operator * ( void ) { return *this->get(); }
+
 };
 
 template< typename _T_, bool _IS_CONTROL_ > struct _dispenser_acquire {
 public:
-    [[gnu::hot]] _dispenser_acquire( Dispenser< _T_ >& disp_, void* arg_ ) : _disp{ &disp_ }, _M_{ disp_._mode }  {
+    template< typename ..._VARGS_ >
+    [[gnu::hot]] _dispenser_acquire( Dispenser< _T_ >& disp_, _VARGS_&&... args_ ) : _disp{ &disp_ }, _M_{ disp_._mode }  {
         switch( _disp->_mode ) {
             case DispenserMode_Lock: {
                 if constexpr( _IS_CONTROL_ ) {
@@ -147,7 +162,7 @@ public:
             break; }
             case DispenserMode_Drop: {
                 if constexpr( _IS_CONTROL_ ) { 
-                    _M_.drop.block = HVec< _T_ >::make();
+                    _M_.drop.block = HVec< _T_ >::make( std::forward< _VARGS_ >( args_ )... );
                 } else {
                     _M_.drop.block = _disp->_M_.drop.block;
                 }
@@ -329,8 +344,10 @@ public:
 
 };
 
-template< typename _T_ > _dispenser_acquire< _T_, false > Dispenser< _T_ >::watch( void* arg_ ) { return _dispenser_acquire< _T_, false >{ *this, arg_ }; }
-template< typename _T_ > _dispenser_acquire< _T_, true > Dispenser< _T_ >::control( void* arg_ ) { return _dispenser_acquire< _T_, true >{ *this, arg_ }; }
+template< typename _T_ > template< typename ..._VARGS_ > 
+_dispenser_acquire< _T_, false > Dispenser< _T_ >::watch( _VARGS_&&... args_ ) { return _dispenser_acquire< _T_, false >{ *this, std::forward< _VARGS_ >( args_ )... }; }
+template< typename _T_ > template< typename ..._VARGS_ > 
+_dispenser_acquire< _T_, true > Dispenser< _T_ >::control( _VARGS_&&... args_ ) { return _dispenser_acquire< _T_, true >{ *this, std::forward< _VARGS_ >( args_ )... }; }
 
 template< typename _T_ > using dispenser_watch   = _dispenser_acquire< _T_, false >;
 template< typename _T_ > using dispenser_control = _dispenser_acquire< _T_, true >;
